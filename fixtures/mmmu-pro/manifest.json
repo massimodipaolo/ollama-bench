@@ -1,0 +1,177 @@
+{
+  "dataset": "MMMU/MMMU_Pro",
+  "revision": "0d7426df4ccb3d8704a992fe6850abee7c262127",
+  "license": "Apache-2.0",
+  "files": {
+    "standard": [
+      "standard (10 options)/test-00000-of-00002.parquet",
+      "standard (10 options)/test-00001-of-00002.parquet"
+    ],
+    "vision": [
+      "vision/test-00000-of-00004.parquet",
+      "vision/test-00001-of-00004.parquet",
+      "vision/test-00002-of-00004.parquet",
+      "vision/test-00003-of-00004.parquet"
+    ]
+  },
+  "selection": "One item per subject (30 subjects) from the test split, hash-ordered; same rows in the \"standard (10 options)\" and \"vision\" configs",
+  "quick": [
+    "validation_Music_15",
+    "validation_Pharmacy_23",
+    "validation_Energy_and_Power_18",
+    "test_Chemistry_524",
+    "validation_Physics_9"
+  ],
+  "items": [
+    {
+      "id": "test_Accounting_131",
+      "row": 139,
+      "subject": "Accounting"
+    },
+    {
+      "id": "test_Agriculture_207",
+      "row": 1249,
+      "subject": "Agriculture"
+    },
+    {
+      "id": "test_Architecture_and_Engineering_214",
+      "row": 1037,
+      "subject": "Architecture_and_Engineering"
+    },
+    {
+      "id": "test_Art_231",
+      "row": 1402,
+      "subject": "Art"
+    },
+    {
+      "id": "test_Art_Theory_117",
+      "row": 129,
+      "subject": "Art_Theory"
+    },
+    {
+      "id": "test_Basic_Medical_Science_179",
+      "row": 180,
+      "subject": "Basic_Medical_Science"
+    },
+    {
+      "id": "test_Biology_183",
+      "row": 1681,
+      "subject": "Biology"
+    },
+    {
+      "id": "test_Chemistry_524",
+      "row": 1555,
+      "subject": "Chemistry"
+    },
+    {
+      "id": "test_Clinical_Medicine_172",
+      "row": 1634,
+      "subject": "Clinical_Medicine"
+    },
+    {
+      "id": "validation_Computer_Science_29",
+      "row": 168,
+      "subject": "Computer_Science"
+    },
+    {
+      "id": "test_Design_146",
+      "row": 407,
+      "subject": "Design"
+    },
+    {
+      "id": "test_Diagnostics_and_Laboratory_Medicine_52",
+      "row": 1400,
+      "subject": "Diagnostics_and_Laboratory_Medicine"
+    },
+    {
+      "id": "validation_Economics_1",
+      "row": 766,
+      "subject": "Economics"
+    },
+    {
+      "id": "test_Electronics_172",
+      "row": 1061,
+      "subject": "Electronics"
+    },
+    {
+      "id": "validation_Energy_and_Power_18",
+      "row": 1234,
+      "subject": "Energy_and_Power"
+    },
+    {
+      "id": "test_Finance_346",
+      "row": 861,
+      "subject": "Finance"
+    },
+    {
+      "id": "test_Geography_252",
+      "row": 1703,
+      "subject": "Geography"
+    },
+    {
+      "id": "test_History_82",
+      "row": 354,
+      "subject": "History"
+    },
+    {
+      "id": "validation_Literature_22",
+      "row": 1350,
+      "subject": "Literature"
+    },
+    {
+      "id": "validation_Manage_4",
+      "row": 1333,
+      "subject": "Manage"
+    },
+    {
+      "id": "test_Marketing_33",
+      "row": 109,
+      "subject": "Marketing"
+    },
+    {
+      "id": "test_Materials_383",
+      "row": 1012,
+      "subject": "Materials"
+    },
+    {
+      "id": "validation_Math_19",
+      "row": 439,
+      "subject": "Math"
+    },
+    {
+      "id": "validation_Mechanical_Engineering_12",
+      "row": 1501,
+      "subject": "Mechanical_Engineering"
+    },
+    {
+      "id": "validation_Music_15",
+      "row": 671,
+      "subject": "Music"
+    },
+    {
+      "id": "validation_Pharmacy_23",
+      "row": 940,
+      "subject": "Pharmacy"
+    },
+    {
+      "id": "validation_Physics_9",
+      "row": 496,
+      "subject": "Physics"
+    },
+    {
+      "id": "test_Psychology_83",
+      "row": 727,
+      "subject": "Psychology"
+    },
+    {
+      "id": "test_Public_Health_186",
+      "row": 110,
+      "subject": "Public_Health"
+    },
+    {
+      "id": "test_Sociology_176",
+      "row": 172,
+      "subject": "Sociology"
+    }
+  ]
+}

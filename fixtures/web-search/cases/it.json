@@ -1,0 +1,126 @@
+[
+  {
+    "id": "live-npm-ai-sdk-ollama",
+    "title": "Ultima versione di ai-sdk-ollama (live)",
+    "quick": true,
+    "prompt": "Qual è l'ultima versione pubblicata del pacchetto npm ai-sdk-ollama? Indica il numero di versione.",
+    "live": {
+      "type": "npm-latest",
+      "package": "ai-sdk-ollama"
+    },
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "live-github-ollama",
+    "title": "Ultima release di Ollama (live)",
+    "quick": true,
+    "prompt": "Qual è l'ultima release di Ollama su GitHub (github.com/ollama/ollama)? Indica il numero di versione.",
+    "live": {
+      "type": "github-latest-release",
+      "repo": "ollama/ollama"
+    },
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "live-npm-ai",
+    "title": "Ultima versione del Vercel AI SDK (live)",
+    "prompt": "Qual è l'ultima versione pubblicata del pacchetto npm \"ai\" (il Vercel AI SDK)?",
+    "live": {
+      "type": "npm-latest",
+      "package": "ai"
+    },
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "fact-1095a-deadline",
+    "title": "Fatto pubblicato: scadenza modulo 1095-A",
+    "quick": true,
+    "prompt": "Secondo le istruzioni IRS per il modulo 1095-A (2026), entro quale data i Marketplace devono consegnare le dichiarazioni ai singoli?",
+    "reference": "Entro il 31 gennaio 2027 (per la copertura dell'anno 2026).",
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "31 gennaio 2027",
+          "January 31, 2027",
+          "31/01/2027",
+          "2027-01-31"
+        ],
+        "label": "31 gennaio 2027"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "fact-soi-zip",
+    "title": "Fatto pubblicato: quota di abbinamento ZIP",
+    "prompt": "Secondo la guida di documentazione IRS Statistics of Income sui dati per distretto congressuale dell'anno fiscale 2017, quale quota di dichiarazioni viene abbinata con il codice ZIP a 9 cifre?",
+    "reference": "Quasi il 97 per cento.",
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "97"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "fetch-url",
+    "title": "Lettura di un URL indicato",
+    "prompt": "Leggi https://raw.githubusercontent.com/jagreehal/ai-sdk-ollama/main/packages/ai-sdk-ollama/package.json e dimmi quale versione di Node.js richiede il pacchetto (campo engines).",
+    "reference": "Il campo engines richiede node >=22 (al 2026-11-26; se diverso, valuta in base al contenuto recuperato nel trace).",
+    "expectTool": "fetch",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "22"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "restraint",
+    "title": "Autocontrollo: nessuna ricerca necessaria",
+    "quick": true,
+    "prompt": "Qual è la capitale della Francia? Rispondi con una parola.",
+    "reference": "Parigi. Non serve alcuno strumento web.",
+    "expectTool": "none",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "Parigi",
+          "Paris"
+        ],
+        "label": "Paris"
+      }
+    ]
+  }
+]

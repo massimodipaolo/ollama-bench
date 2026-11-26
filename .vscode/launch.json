@@ -1,0 +1,38 @@
+{
+  // Run & Debug configurations. The SDK upgrade itself is a task (.vscode/tasks.json); the "Update AI SDK"
+  // entry runs it as preLaunchTask and then smoke-tests the result.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "dev",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev"
+    },
+    {
+      "name": "start",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm start"
+    },    
+    {
+      "name": "ai-sdk:update",
+      "type": "node",
+      "request": "launch",
+      "preLaunchTask": "AI SDK: update packages",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["smoke"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "bench:dry-run",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["bench", "--skip-existing", "--dry-run"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

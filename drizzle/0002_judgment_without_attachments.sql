@@ -1,0 +1,1 @@
+ALTER TABLE `judgments` ADD `without_attachments` integer DEFAULT false NOT NULL;

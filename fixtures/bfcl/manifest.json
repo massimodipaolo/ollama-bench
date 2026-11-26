@@ -1,0 +1,86 @@
+{
+  "repo": "ShishirPatil/gorilla",
+  "revision": "f7cf7359b7ac615a0b294831c5ba2bc95ee4a000",
+  "base": "berkeley-function-call-leaderboard/bfcl_eval/data",
+  "license": "Apache-2.0",
+  "selection": "BFCL v4 single-turn categories, hash-ordered; quick = first id of each category",
+  "ids": {
+    "simple_python": [
+      "simple_python_244",
+      "simple_python_294",
+      "simple_python_127",
+      "simple_python_71",
+      "simple_python_158",
+      "simple_python_371",
+      "simple_python_372",
+      "simple_python_86",
+      "simple_python_11",
+      "simple_python_168",
+      "simple_python_256",
+      "simple_python_331",
+      "simple_python_155",
+      "simple_python_68",
+      "simple_python_96"
+    ],
+    "multiple": [
+      "multiple_110",
+      "multiple_56",
+      "multiple_181",
+      "multiple_32",
+      "multiple_158",
+      "multiple_90",
+      "multiple_86",
+      "multiple_113",
+      "multiple_15",
+      "multiple_38"
+    ],
+    "parallel": [
+      "parallel_149",
+      "parallel_29",
+      "parallel_129",
+      "parallel_80",
+      "parallel_21",
+      "parallel_185",
+      "parallel_53",
+      "parallel_188",
+      "parallel_183",
+      "parallel_110"
+    ],
+    "parallel_multiple": [
+      "parallel_multiple_122",
+      "parallel_multiple_18",
+      "parallel_multiple_45",
+      "parallel_multiple_132",
+      "parallel_multiple_91",
+      "parallel_multiple_0",
+      "parallel_multiple_16",
+      "parallel_multiple_109",
+      "parallel_multiple_150",
+      "parallel_multiple_123"
+    ],
+    "irrelevance": [
+      "irrelevance_86",
+      "irrelevance_118",
+      "irrelevance_164",
+      "irrelevance_99",
+      "irrelevance_46",
+      "irrelevance_31",
+      "irrelevance_176",
+      "irrelevance_56",
+      "irrelevance_179",
+      "irrelevance_217",
+      "irrelevance_131",
+      "irrelevance_160",
+      "irrelevance_102",
+      "irrelevance_222",
+      "irrelevance_76"
+    ]
+  },
+  "quick": [
+    "simple_python_244",
+    "multiple_110",
+    "parallel_149",
+    "parallel_multiple_122",
+    "irrelevance_86"
+  ]
+}

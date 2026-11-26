@@ -1,0 +1,261 @@
+[
+  {
+    "id": "infographic-ocr",
+    "title": "OCR: titolo e testo evidenziato",
+    "quick": true,
+    "images": [
+      "wmr_fb_final.jpg"
+    ],
+    "prompt": "Trascrivi esattamente il titolo di questa immagine e l'intervallo di tempo evidenziato a colori.",
+    "reference": "Titolo: \"When will I get my refund?\". Intervallo evidenziato (arancione/rosso): \"within 10 - 21 days\". Il testo citato resta in inglese.",
+    "checks": [
+      {
+        "type": "includes",
+        "values": [
+          "When will I get my refund"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "10\\s*[-–—]\\s*21",
+        "label": "\"10 - 21\""
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "infographic-steps",
+    "title": "Layout: passaggi numerati in ordine",
+    "quick": true,
+    "images": [
+      "wmr_fb_final.jpg"
+    ],
+    "prompt": "L'immagine contiene dei passaggi numerati. Elenca ogni numero con il relativo titolo, in ordine, riportando i titoli come scritti nell'immagine.",
+    "reference": "1. When to check...  2. What you need...  3. How...",
+    "checks": [
+      {
+        "type": "inOrder",
+        "values": [
+          "When to check",
+          "What you need",
+          "How"
+        ],
+        "label": "3 passaggi in ordine"
+      }
+    ]
+  },
+  {
+    "id": "infographic-qa",
+    "title": "Domande visive tra pannelli",
+    "images": [
+      "wmr_fb_final.jpg"
+    ],
+    "prompt": "Secondo l'immagine, quali tre informazioni mi servono e quanto tempo dopo aver spedito una dichiarazione cartacea devo controllare?",
+    "reference": "Social Security Number (numero di previdenza sociale), filing status (stato civile ai fini fiscali), exact refund amount (importo esatto del rimborso). Controllare 4 settimane dopo la spedizione della dichiarazione cartacea.",
+    "checks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "Social Security",
+          "previdenza sociale",
+          "codice fiscale"
+        ],
+        "label": "Social Security Number"
+      },
+      {
+        "type": "includesAny",
+        "values": [
+          "Filing status",
+          "stato civile",
+          "stato di presentazione",
+          "stato di dichiarazione",
+          "status di"
+        ],
+        "label": "filing status"
+      },
+      {
+        "type": "includesAny",
+        "values": [
+          "refund amount",
+          "importo esatto",
+          "importo del rimborso"
+        ],
+        "label": "importo esatto del rimborso"
+      },
+      {
+        "type": "regex",
+        "pattern": "4\\s*settimane|quattro\\s*settimane|4\\s*weeks",
+        "label": "4 settimane"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "infographic-trap",
+    "title": "Trappola: numero di telefono assente",
+    "images": [
+      "wmr_fb_final.jpg"
+    ],
+    "prompt": "Quale numero verde mi dice di chiamare questa immagine?",
+    "reference": "Nell'immagine non compare alcun numero di telefono. Anzi, dice di NON chiamare il numero verde a meno che Where's My Refund non lo indichi.",
+    "checks": [
+      {
+        "type": "notRegex",
+        "pattern": "\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}",
+        "label": "nessun numero inventato"
+      },
+      {
+        "type": "includesAny",
+        "values": [
+          "non chiamare",
+          "nessun numero",
+          "non riporta",
+          "non indica",
+          "non è presente",
+          "non compare",
+          "non mostra",
+          "non fornisce",
+          "non c'è",
+          "non contiene",
+          "non viene"
+        ],
+        "label": "dice che non c'è un numero"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "pdf-page-facts",
+    "title": "Pagina di documento: caratteri piccoli",
+    "quick": true,
+    "images": [
+      "i1095a-p1.png"
+    ],
+    "prompt": "Da questa pagina: qual è il numero di catalogo, quale data è stampata in basso a sinistra e qual è la scadenza per consegnare le dichiarazioni ai singoli?",
+    "reference": "Catalog Number 63016Q; data in basso a sinistra: Oct 29, 2026 (29 ottobre 2026); scadenza: entro il 31 gennaio 2027 (January 31, 2027), per la copertura dell'anno 2026.",
+    "checks": [
+      {
+        "type": "includes",
+        "values": [
+          "63016Q"
+        ]
+      },
+      {
+        "type": "includesAny",
+        "values": [
+          "Oct 29, 2026",
+          "29 ottobre 2026",
+          "29/10/2026",
+          "2026-10-29",
+          "October 29, 2026"
+        ],
+        "label": "29 ottobre 2026"
+      },
+      {
+        "type": "includesAny",
+        "values": [
+          "31 gennaio 2027",
+          "January 31, 2027",
+          "31/01/2027",
+          "2027-01-31"
+        ],
+        "label": "31 gennaio 2027"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "pdf-reading-order",
+    "title": "Ordine di lettura su due colonne",
+    "images": [
+      "i1095a-p1.png"
+    ],
+    "prompt": "Questa pagina ha due colonne. Elenca, in ordine di lettura, i titoli e sottotitoli della SOLA colonna di SINISTRA, così come sono scritti.",
+    "reference": "Future Developments; Additional Information; General Instructions; Purpose of Form; Who Must File; When To File; How To File.",
+    "checks": [
+      {
+        "type": "inOrder",
+        "values": [
+          "Future Developments",
+          "Additional Information",
+          "General Instructions",
+          "Purpose of Form",
+          "Who Must File",
+          "When To File",
+          "How To File"
+        ],
+        "label": "7 titoli della colonna sinistra in ordine"
+      },
+      {
+        "type": "excludes",
+        "values": [
+          "Specific Instructions",
+          "Statements to Individuals"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pdf-page3-details",
+    "title": "Pagina di documento: ricerca dettagli",
+    "images": [
+      "i1095a-p3.png"
+    ],
+    "prompt": "Qual è il tempo medio stimato per preparare il modulo e a quale indirizzo postale si possono inviare commenti?",
+    "reference": "Preparazione del modulo: 3 minuti. Indirizzo: Internal Revenue Service, Tax Forms and Publications, 1111 Constitution Ave. NW, IR-6526, Washington, DC 20224.",
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "3\\s*min",
+        "label": "3 minuti"
+      },
+      {
+        "type": "includes",
+        "values": [
+          "1111 Constitution",
+          "IR-6526",
+          "20224"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "infographic-describe",
+    "title": "Descrizione per l'accessibilità",
+    "images": [
+      "wmr_fb_final.jpg"
+    ],
+    "prompt": "Descrivi questa immagine a una persona non vedente in 3-4 frasi: che cos'è, chi l'ha pubblicata e quali informazioni principali comunica.",
+    "reference": "Un'infografica dell'IRS intitolata \"When will I get my refund?\" (logo IRS in alto a sinistra). Dice che chi invia telematicamente riceve di norma il rimborso entro 10-21 giorni e chiede di non chiamare il numero verde a meno che Where's My Refund non lo indichi. Tre pannelli blu numerati: quando controllare (72 ore dopo l'invio telematico, 4 settimane dopo la spedizione cartacea), cosa serve (SSN, stato civile fiscale, importo esatto del rimborso) e come (andare su Where's My Refund).",
+    "checks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "IRS",
+          "Internal Revenue Service",
+          "agenzia delle entrate statunitense",
+          "fisco statunitense"
+        ],
+        "label": "cita l'IRS"
+      },
+      {
+        "type": "maxWords",
+        "value": 130
+      },
+      {
+        "type": "language"
+      }
+    ]
+  }
+]

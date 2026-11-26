@@ -1,0 +1,102 @@
+[
+  {
+    "id": "summary-bullets",
+    "title": "Summarize in exactly 3 bullets",
+    "quick": true,
+    "prompt": "Summarize the following documentation excerpt in exactly 3 bullet points (use \"- \" as bullet marker). Maximum 80 words in total. Output only the bullets.",
+    "context": "C. Congressional District and ZIP Code Matching Procedures\nSOI uses a commercial file to match ZIP codes to congressional districts. The matching process first utilizes the 9-digit ZIP code, if present on the return, to determine the proper congressional district for that return. Nearly 97 percent of the returns match on the 9-digit ZIP code. When the 9-digit ZIP code is not available, the matching process uses the 5-digit ZIP code to determine the proper congressional district. Returns that do not match on ZIP code, or where a ZIP code is not present, are excluded from the data.\nEight states (AK, DC, DE, MT, ND, SD, VT, and WY) have only one congressional district, therefore the matching procedures are not performed on these states. Returns with only one congressional district represent 2 percent of the total number of returns.",
+    "reference": "- ZIP codes are matched to congressional districts with a commercial file, using the 9-digit ZIP first (≈97% of returns match) and the 5-digit ZIP as fallback.\n- Returns without a matching or present ZIP code are excluded.\n- Eight single-district states (AK, DC, DE, MT, ND, SD, VT, WY) skip matching; they are 2% of returns.",
+    "checks": [
+      { "type": "bulletCount", "value": 3 },
+      { "type": "maxWords", "value": 90 },
+      { "type": "includes", "values": ["97"] },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "reasoning-math",
+    "title": "Multi-step arithmetic reasoning",
+    "quick": true,
+    "prompt": "A congressional district has 412,000 tax returns. 97% of them match on the 9-digit ZIP code. Of the remaining returns, 80% match on the 5-digit ZIP code. All returns that still do not match are excluded. How many returns are excluded? Explain your reasoning briefly, then give the final answer on the last line as: Answer: <number>",
+    "reference": "412,000 × 3% = 12,360 not matched on 9-digit ZIP; 20% of 12,360 = 2,472 excluded. Answer: 2472",
+    "checks": [
+      { "type": "number", "value": 2472 },
+      { "type": "regex", "pattern": "answer:\\s*2[,.]?472", "label": "final line 'Answer: 2472'" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "plain-language",
+    "title": "Rewrite for a non-expert",
+    "quick": true,
+    "prompt": "Rewrite the following text in plain language for someone with no tax knowledge. Keep every rule, but explain any acronym. Maximum 120 words.",
+    "context": "SOI did not attempt to correct any ZIP codes listed on the tax returns; however, it did take the following precautions to avoid disclosing information about specific taxpayers: Income and tax items with less than 20 returns for a particular AGI class were combined with another AGI class within the same congressional district. Collapsed AGI classes are identified with a double asterisk (**) in the Excel files. Income and tax items with less than 20 returns for a congressional district were excluded.",
+    "reference": "Must keep: ZIP codes were not corrected; groups with fewer than 20 returns in an income bracket are merged with another bracket (marked ** in the Excel files); items with fewer than 20 returns in a district are dropped; the purpose is protecting taxpayer privacy. AGI = Adjusted Gross Income, SOI = Statistics of Income.",
+    "checks": [
+      { "type": "maxWords", "value": 130 },
+      { "type": "includes", "values": ["20"] },
+      { "type": "includesAny", "values": ["adjusted gross income"], "label": "explains AGI" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "constrained-steps",
+    "title": "Follow formatting constraints",
+    "prompt": "Write instructions for taxpayers on how to check the status of their refund. Requirements: exactly 4 numbered steps (\"1. \" … \"4. \"), mention the online tool \"Where's My Refund\", say they should wait 72 hours after e-filing, do not use exclamation marks, no introduction or conclusion.",
+    "reference": "Four numbered steps, mentions Where's My Refund and the 72-hour wait after e-filing, no exclamation marks, nothing else.",
+    "checks": [
+      { "type": "numberedCount", "value": 4 },
+      { "type": "includes", "values": ["Where's My Refund", "72"] },
+      { "type": "notRegex", "pattern": "!", "label": "no exclamation marks" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "formal-email",
+    "title": "Formal email with constraints",
+    "prompt": "Write a formal email to Ms. Laura Bianchi declining her invitation to a meeting on Monday 14 December about the quarterly tax report, because of a prior commitment. Propose two alternative dates in the same week. Start with a line \"Subject: ...\". Maximum 150 words.",
+    "reference": "Polite, formal tone; subject line; declines Monday 14 December with a reason; proposes two concrete alternative dates between 15 and 18/19 December; signs off.",
+    "checks": [
+      { "type": "regex", "pattern": "^\\s*\\**subject\\**\\s*:", "label": "starts with 'Subject:'" },
+      { "type": "maxWords", "value": 160 },
+      { "type": "includes", "values": ["Bianchi"] },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "translate",
+    "title": "Translate Italian → English",
+    "prompt": "Translate the following Italian text into English. Output only the translation.",
+    "context": "I dati sui distretti congressuali si basano sulle dichiarazioni dei redditi individuali elaborate dall'IRS durante l'anno solare 2018. I totali statali potrebbero non essere confrontabili con quelli pubblicati altrove, a causa delle procedure di protezione dei dati o dell'esclusione delle dichiarazioni il cui codice postale non corrispondeva.",
+    "reference": "Congressional district data are based on individual income tax returns processed by the IRS during the 2018 calendar year. State totals may not be comparable to those published elsewhere because of data/disclosure protection procedures or the exclusion of returns whose ZIP code did not match.",
+    "checks": [
+      { "type": "includes", "values": ["IRS", "2018"] },
+      { "type": "includesAny", "values": ["ZIP code", "postal code", "zip code"], "label": "translates 'codice postale'" },
+      { "type": "maxWords", "value": 80 },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "extract-list",
+    "title": "Precise extraction",
+    "prompt": "From the text below, list the postal codes of the states that have only one congressional district, as a single comma-separated line in alphabetical order. Output nothing else.",
+    "context": "Eight states (AK, DC, DE, MT, ND, SD, VT, and WY) have only one congressional district, therefore the matching procedures are not performed on these states. Returns with only one congressional district represent 2 percent of the total number of returns.",
+    "reference": "AK, DC, DE, MT, ND, SD, VT, WY",
+    "checks": [
+      { "type": "includes", "values": ["AK", "DC", "DE", "MT", "ND", "SD", "VT", "WY"] },
+      { "type": "regex", "pattern": "^\\s*AK\\s*,\\s*DC\\s*,\\s*DE\\s*,\\s*MT\\s*,\\s*ND\\s*,\\s*SD\\s*,\\s*VT\\s*,\\s*WY\\s*\\.?\\s*$", "flags": "", "label": "exact sorted list, nothing else" },
+      { "type": "maxWords", "value": 12 }
+    ]
+  },
+  {
+    "id": "explain-child",
+    "title": "Explain to a 10-year-old",
+    "prompt": "Explain to a 10-year-old why a statistics office would leave out tax returns that have no ZIP code when it counts data by congressional district. Maximum 80 words, no bullet points.",
+    "reference": "Data are counted by district and the district is found from the ZIP code; without a ZIP code you can't tell which district the return belongs to, so it can't be put in any group. Simple words, friendly tone, short.",
+    "checks": [
+      { "type": "maxWords", "value": 90 },
+      { "type": "notRegex", "pattern": "^\\s*[-*•]\\s+", "flags": "m", "label": "no bullet points" },
+      { "type": "language" }
+    ]
+  }
+]

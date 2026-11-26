@@ -1,0 +1,14 @@
+allowBuilds:
+  sharp: false
+  unrs-resolver: false
+  better-sqlite3: true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@ai-sdk/anthropic@4.0.110'
+  - '@ai-sdk/cohere@4.0.88'
+  - '@ai-sdk/gateway@4.0.156'
+  - '@ai-sdk/google@4.0.128'
+  - '@ai-sdk/openai@4.0.125'
+  - '@ai-sdk/provider-utils@5.0.85'
+  - ai@7.0.183
+  - '@ai-sdk/mcp@2.0.106'

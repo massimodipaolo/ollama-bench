@@ -1,0 +1,193 @@
+[
+  {
+    "id": "q-furnish-deadline",
+    "title": "Scadenza per consegnare le dichiarazioni",
+    "quick": true,
+    "query": "Entro quando i Marketplace devono consegnare ai singoli il modulo 1095-A per la copertura 2026?",
+    "relevant": [{ "doc": "i1095a", "contains": "on or before January 31, 2027" }],
+    "answer": "Entro il 31 gennaio 2027 (per la copertura dell'anno 2026); se cade nel fine settimana o in un giorno festivo, entro il giorno lavorativo successivo.",
+    "answerChecks": [{ "type": "includesAny", "values": ["31 gennaio 2027", "January 31, 2027", "31/01/2027", "2027-01-31"], "label": "31 gennaio 2027" }, { "type": "language" }]
+  },
+  {
+    "id": "q-who-files",
+    "title": "Chi deve presentarlo",
+    "query": "Chi è tenuto a presentare il modulo 1095-A?",
+    "relevant": [{ "doc": "i1095a", "contains": "Health Insurance Marketplaces must file Form 1095-A" }],
+    "answer": "I Health Insurance Marketplace, per tutte le iscrizioni a piani sanitari qualificati del mercato individuale tramite il Marketplace.",
+    "answerChecks": [{ "type": "includesAny", "values": ["Marketplace"], "label": "i Marketplace" }, { "type": "language" }]
+  },
+  {
+    "id": "q-excluded-plans",
+    "title": "Piani esclusi",
+    "query": "Per quali tipi di piani sanitari non si deve presentare il modulo 1095-A?",
+    "relevant": [
+      { "doc": "i1095a", "contains": "Do not file a Form 1095-A for a catastrophic health plan" },
+      { "doc": "i1095a", "contains": "Don't furnish a Form 1095-A for a catastrophic health plan" }
+    ],
+    "answer": "Piani sanitari catastrofici (catastrophic health plan) e polizze dentistiche separate (stand-alone dental plan).",
+    "answerChecks": [{ "type": "includesAny", "values": ["catastrofic", "catastrophic"], "label": "piani catastrofici" }, { "type": "includesAny", "values": ["dentist", "dental", "odontoiatric"], "label": "piani dentistici" }, { "type": "language" }]
+  },
+  {
+    "id": "q-ssn-truncation",
+    "title": "Mascheramento del numero di previdenza sociale",
+    "query": "Si può nascondere una parte del numero di previdenza sociale sulla copia spedita all'interessato?",
+    "relevant": [{ "doc": "i1095a", "contains": "showing only the last 4 digits" }],
+    "answer": "Sì, mostrando solo le ultime 4 cifre e sostituendo le prime 5 con asterischi o X; non è ammesso sui moduli trasmessi all'IRS.",
+    "answerChecks": [{ "type": "includesAny", "values": ["ultime 4", "ultime quattro"], "label": "ultime 4 cifre" }, { "type": "language" }]
+  },
+  {
+    "id": "q-electronic-consent",
+    "title": "Invio elettronico",
+    "query": "La dichiarazione può essere inviata via email? Cosa serve prima?",
+    "relevant": [{ "doc": "i1095a", "contains": "affirmative consent to furnish a statement electronically" }],
+    "answer": "Sì, ma solo con il consenso esplicito del destinatario all'invio elettronico (su carta o in forma elettronica; il consenso cartaceo va confermato elettronicamente).",
+    "answerChecks": [{ "type": "includesAny", "values": ["consenso"], "label": "cita il consenso" }, { "type": "language" }]
+  },
+  {
+    "id": "q-policy-number",
+    "title": "Numeri di polizza lunghi",
+    "quick": true,
+    "query": "Il numero della mia polizza è lunghissimo, più di quindici caratteri. Cosa scrivo nella casella del numero di polizza?",
+    "relevant": [{ "doc": "i1095a", "contains": "enter only the last 15 characters" }],
+    "answer": "Solo gli ultimi 15 caratteri del numero di polizza.",
+    "answerChecks": [{ "type": "includesAny", "values": ["ultimi 15", "ultimi quindici"], "label": "ultimi 15 caratteri" }, { "type": "language" }]
+  },
+  {
+    "id": "q-coverage-start",
+    "title": "Data di inizio copertura",
+    "query": "Quale data va indicata alla riga 10 se la polizza era già attiva all'inizio dell'anno?",
+    "relevant": [{ "doc": "i1095a", "contains": "enter 1/1/2026" }],
+    "answer": "1/1/2026 (1° gennaio 2026).",
+    "answerChecks": [{ "type": "includesAny", "values": ["1/1/2026", "1 gennaio 2026", "1° gennaio 2026", "01/01/2026", "2026-01-01"], "label": "1/1/2026" }, { "type": "language" }]
+  },
+  {
+    "id": "q-many-individuals",
+    "title": "Più di cinque persone coperte",
+    "query": "La polizza copre sette familiari ma il modulo ha spazio solo per alcuni. Cosa bisogna fare?",
+    "relevant": [{ "doc": "i1095a", "contains": "more than five covered individuals" }],
+    "answer": "Compilare uno o più moduli 1095-A aggiuntivi, Parte II.",
+    "answerChecks": [{ "type": "includesAny", "values": ["aggiuntiv", "ulterior", "altri moduli"], "label": "moduli aggiuntivi" }, { "type": "language" }]
+  },
+  {
+    "id": "q-slcsp",
+    "title": "Colonna B (SLCSP)",
+    "query": "Quale premio va riportato nella colonna B della Parte III?",
+    "relevant": [{ "doc": "i1095a", "contains": "second lowest cost silver plan" }],
+    "answer": "Il premio del secondo piano silver più economico applicabile (SLCSP), usato come riferimento per calcolare i pagamenti anticipati del credito.",
+    "answerChecks": [{ "type": "includesAny", "values": ["SLCSP", "silver"], "label": "SLCSP" }, { "type": "language" }]
+  },
+  {
+    "id": "q-void",
+    "title": "Dichiarazione inviata per errore",
+    "query": "È stato inviato per errore un modulo 1095-A per un piano dentistico separato. Come si rimedia?",
+    "relevant": [{ "doc": "i1095a", "contains": "check the \"VOID\" box" }],
+    "answer": "Inviare un duplicato di quel modulo 1095-A con la casella \"VOID\" selezionata, all'IRS e al destinatario, il prima possibile.",
+    "answerChecks": [{ "type": "includes", "values": ["VOID"] }, { "type": "language" }]
+  },
+  {
+    "id": "q-time-estimate",
+    "title": "Tempo di preparazione",
+    "query": "Quanto tempo serve in media per preparare il modulo 1095-A?",
+    "relevant": [{ "doc": "i1095a", "contains": "Preparing the form" }],
+    "answer": "3 minuti.",
+    "answerChecks": [{ "type": "regex", "pattern": "\\b3\\s*min", "label": "3 minuti" }, { "type": "language" }]
+  },
+  {
+    "id": "q-comments-address",
+    "title": "Indirizzo per i commenti",
+    "query": "A quale indirizzo posso spedire commenti sui tempi stimati per questo modulo?",
+    "relevant": [{ "doc": "i1095a", "contains": "1111 Constitution Ave" }],
+    "answer": "Internal Revenue Service, Tax Forms and Publications, 1111 Constitution Ave. NW, IR-6526, Washington, DC 20224 (oppure online su IRS.gov/FormComments).",
+    "answerChecks": [{ "type": "includes", "values": ["1111 Constitution", "20224"] }, { "type": "language" }]
+  },
+  {
+    "id": "q-zip-match-rate",
+    "title": "Quota di abbinamento con ZIP a 9 cifre",
+    "quick": true,
+    "query": "Quale percentuale di dichiarazioni viene associata a un distretto congressuale tramite il codice postale a 9 cifre?",
+    "relevant": [{ "doc": "17incddocguide", "contains": "Nearly 97 percent" }],
+    "answer": "Quasi il 97 per cento.",
+    "answerChecks": [{ "type": "includes", "values": ["97"] }, { "type": "language" }]
+  },
+  {
+    "id": "q-single-district",
+    "title": "Stati con un solo distretto",
+    "query": "Quali stati hanno un solo distretto congressuale?",
+    "relevant": [{ "doc": "17incddocguide", "contains": "Eight states (AK, DC" }],
+    "answer": "AK, DC, DE, MT, ND, SD, VT e WY.",
+    "answerChecks": [{ "type": "includes", "values": ["AK", "DC", "DE", "MT", "ND", "SD", "VT", "WY"] }, { "type": "language" }]
+  },
+  {
+    "id": "q-disclosure-20",
+    "title": "Soglia di protezione dei dati",
+    "query": "Come viene protetta la privacy dei contribuenti quando in un distretto ci sono pochissime dichiarazioni per una certa voce di reddito?",
+    "relevant": [{ "doc": "17incddocguide", "contains": "less than 20 returns for a congressional district were excluded" }],
+    "answer": "Le voci con meno di 20 dichiarazioni nel distretto vengono escluse; quelle con meno di 20 in una classe di AGI vengono accorpate a un'altra classe.",
+    "answerChecks": [{ "type": "includes", "values": ["20"] }, { "type": "language" }]
+  },
+  {
+    "id": "q-apo",
+    "title": "Indirizzi postali militari",
+    "query": "Gli indirizzi postali militari sono conteggiati nelle statistiche per distretto?",
+    "relevant": [{ "doc": "17incddocguide", "contains": "Army Post Office" }],
+    "answer": "No: le dichiarazioni con indirizzi APO/FPO, esteri o di Porto Rico e dei territori sono escluse.",
+    "answerChecks": [{ "type": "includesAny", "values": ["no", "esclus", "non sono"], "label": "dice che sono esclusi" }, { "type": "language" }]
+  },
+  {
+    "id": "q-agi-variable",
+    "title": "Nome della variabile AGI",
+    "quick": true,
+    "query": "Quale variabile contiene l'importo del reddito lordo rettificato e da quale riga del modulo 1040 proviene?",
+    "relevant": [{ "doc": "17incddocguide", "contains": "| A00100 |" }],
+    "answer": "A00100, riga 37 del modulo 1040 (1040A riga 21, 1040EZ riga 4).",
+    "answerChecks": [{ "type": "includes", "values": ["A00100", "37"] }, { "type": "language" }]
+  },
+  {
+    "id": "q-agi-stub",
+    "title": "Classi di reddito",
+    "query": "Quale fascia di reddito corrisponde al valore 7 di AGI_STUB?",
+    "relevant": [{ "doc": "17incddocguide", "contains": "7 = $100,000 under $200,000" }],
+    "answer": "Da 100.000 $ a meno di 200.000 $.",
+    "answerChecks": [{ "type": "regex", "pattern": "100[.,]?000", "label": "100.000" }, { "type": "regex", "pattern": "200[.,]?000", "label": "200.000" }, { "type": "language" }]
+  },
+  {
+    "id": "q-refund-needs",
+    "title": "Cosa serve per controllare il rimborso",
+    "quick": true,
+    "query": "Quali informazioni mi servono per verificare lo stato del mio rimborso?",
+    "relevant": [{ "doc": "wmr_fb_final", "contains": "Exact refund amount" }],
+    "answer": "Numero di previdenza sociale (SSN), stato civile ai fini fiscali (filing status) e importo esatto del rimborso.",
+    "answerChecks": [{ "type": "includesAny", "values": ["previdenza sociale", "Social Security", "SSN"], "label": "SSN" }, { "type": "includesAny", "values": ["importo esatto", "refund amount", "importo del rimborso"], "label": "importo esatto" }, { "type": "language" }]
+  },
+  {
+    "id": "q-paper-return",
+    "title": "Quando controllare dopo una dichiarazione cartacea",
+    "query": "Quanto tempo dopo aver spedito la dichiarazione cartacea devo controllare il rimborso?",
+    "relevant": [{ "doc": "wmr_fb_final", "contains": "4 weeks after you mailed" }],
+    "answer": "4 settimane dopo la spedizione della dichiarazione cartacea.",
+    "answerChecks": [{ "type": "regex", "pattern": "4\\s*settimane|quattro\\s*settimane", "label": "4 settimane" }, { "type": "language" }]
+  },
+  {
+    "id": "q-giin-country",
+    "title": "Ricerca in tabella per GIIN",
+    "quick": true,
+    "query": "In quale paese si trova l'istituto con GIIN 456DEF.00002.BR.344?",
+    "relevant": [{ "doc": "FFIListExample3.0", "contains": "456DEF.00002.BR.344" }],
+    "answer": "Hong Kong (Test Bank Ten, LLP - Branch).",
+    "answerChecks": [{ "type": "includes", "values": ["Hong Kong"] }, { "type": "language" }]
+  },
+  {
+    "id": "q-unanswerable-penalty",
+    "title": "Non presente nei documenti (sanzione per ritardo)",
+    "quick": true,
+    "query": "Qual è la sanzione in dollari per un Marketplace che presenta il modulo 1095-A in ritardo?",
+    "relevant": [],
+    "unanswerable": true,
+    "answer": "I documenti non indicano alcuna sanzione: la risposta deve dire che l'informazione non è presente nelle fonti fornite.",
+    "answerChecks": [
+      { "type": "includesAny", "values": ["non indica", "non riport", "non specific", "non menzion", "non contien", "non è present", "non sono present", "non fornisc", "non è indicat", "non viene", "nessuna informazione", "non ci sono", "non è possibile", "non trovo", "non risulta", "non citano", "non è specificat"], "label": "dice che non è nelle fonti" },
+      { "type": "notRegex", "pattern": "\\$\\s?\\d|\\d\\s?\\$", "label": "nessun importo inventato" },
+      { "type": "language" }
+    ]
+  }
+]

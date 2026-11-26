@@ -1,0 +1,293 @@
+[
+  {
+    "id": "form-basics",
+    "title": "Extract form facts",
+    "quick": true,
+    "schema": "formBasics",
+    "instruction": "Extract the requested facts about the form from the instructions below. Copy names and values verbatim from the source. Write free-text fields in English.",
+    "context": "Instructions for Form 1095-A\nHealth Insurance Marketplace Statement\nPurpose of Form\nForm 1095-A is used to report certain information to the IRS about individuals who enroll in a qualified health plan through the Health Insurance Marketplace. Form 1095-A is also furnished to individuals to allow them to take the premium tax credit, to reconcile the credit on their returns with advance payments of the premium tax credit (advance credit payments), and to file an accurate tax return.\nWho Must File\nHealth Insurance Marketplaces must file Form 1095-A to report information on all enrollments in qualified health plans in the individual market through the Marketplace. Do not file a Form 1095-A for a catastrophic health plan or a separate dental policy (called a stand-alone dental plan in these instructions).\nWhen To File\nFile the annual report with the IRS and furnish the statements to individuals on or before January 31, 2027, for coverage in calendar year 2026.",
+    "expected": {
+      "formNumber": "1095-A",
+      "formTitle": "Health Insurance Marketplace Statement",
+      "taxYear": 2026,
+      "furnishDeadline": "2027-01-31",
+      "filer": "Health Insurance Marketplaces",
+      "excludedPlans": [
+        "catastrophic health plan",
+        "stand-alone dental plan || separate dental policy"
+      ]
+    },
+    "freeText": [
+      "summary"
+    ]
+  },
+  {
+    "id": "doc-overview",
+    "title": "Extract nested document overview",
+    "quick": true,
+    "schema": "docOverview",
+    "instruction": "Extract an overview of the documentation guide below. Copy names and values verbatim from the source. Write free-text fields in English.",
+    "context": "Congressional District Data\nTax Year 2017 Documentation Guide\nContents\nA. Overview\nB. Population Definitions and Tax Return Addresses\nC. ZIP Code and Congressional District Matching Procedures\nD. Disclosure Protection Procedures\nE. File Characteristics\nF. Selected Income and Tax Items\nG. Endnotes\nA. Overview\nThe Statistics of Income (SOI) Division's Congressional district data is tabulated using individual income tax returns (Forms 1040) filed with the Internal Revenue Service (IRS) during the 12-month period, January 1, 2018 to December 31, 2018. While the bulk of returns filed during this 12-month period are primarily for Tax Year 2017, the IRS received a limited number of returns for tax years before 2017. These prior-year returns are used as a proxy for returns that are typically filed beyond the 12-month period and have been included within the congressional district data.\nB. Population Definitions and Tax Return Addresses\nCongressional data are based on the population of individual income tax returns processed by the IRS during the 2018 calendar year. Data do not represent the full U.S. population because many individuals are not required to file an individual income tax return. Congressional districts were based on the ZIP code shown on the return.\nC. Congressional District and ZIP Code Matching Procedures\nSOI uses a commercial file to match ZIP codes to congressional districts. The matching process first utilizes the 9-digit ZIP code, if present on the return, to determine the proper congressional district for that return. Nearly 97 percent of the returns match on the 9-digit ZIP code. When the 9-digit ZIP code is not available, the matching process uses the 5-digit ZIP code to determine the proper congressional district. Returns that do not match on ZIP code, or where a ZIP code is not present, are excluded from the data.\nEight states (AK, DC, DE, MT, ND, SD, VT, and WY) have only one congressional district, therefore the matching procedures are not performed on these states.",
+    "expected": {
+      "title": "Congressional District Data",
+      "taxYear": 2017,
+      "dataSource": {
+        "agency": "Internal Revenue Service || IRS",
+        "division": "Statistics of Income || SOI || Statistics of Income (SOI) Division",
+        "formType": "1040 || Form 1040 || Forms 1040"
+      },
+      "filingPeriod": {
+        "start": "2018-01-01",
+        "end": "2018-12-31"
+      },
+      "sections": [
+        {
+          "letter": "A",
+          "title": "Overview"
+        },
+        {
+          "letter": "B",
+          "title": "Population Definitions and Tax Return Addresses"
+        },
+        {
+          "letter": "C",
+          "title": "ZIP Code and Congressional District Matching Procedures"
+        },
+        {
+          "letter": "D",
+          "title": "Disclosure Protection Procedures"
+        },
+        {
+          "letter": "E",
+          "title": "File Characteristics"
+        },
+        {
+          "letter": "F",
+          "title": "Selected Income and Tax Items"
+        },
+        {
+          "letter": "G",
+          "title": "Endnotes"
+        }
+      ],
+      "singleDistrictStates": [
+        "AK",
+        "DC",
+        "DE",
+        "MT",
+        "ND",
+        "SD",
+        "VT",
+        "WY"
+      ],
+      "nineDigitMatchRatePercent": 97
+    },
+    "freeText": [
+      "summary"
+    ]
+  },
+  {
+    "id": "ffi-table",
+    "title": "Extract a table with derived fields",
+    "quick": true,
+    "schema": "ffiTable",
+    "instruction": "Convert every data row of the CSV below into the requested structure. Derive category from the GIIN and isBranch from the name. Copy names and values verbatim from the source.",
+    "context": "GIIN,FINm,CountryNm\n\"123ABC.00000.LE.250\",\"Test Bank One, LLP\",\"France\"\n\"123ABC.00000.BR.826\",\"Test Bank One, LLP - Branch\",\"United Kingdom\"\n\"123ABC.00000.BR.036\",\"Test Bank One, LLP - Branch\",\"Australia\"\n\"123ABC.00000.BR.076\",\"Test Bank One, LLP - Branch\",\"Brazil\"\n\"123ABC.00000.BR.818\",\"Test Bank One, LLP - Branch\",\"Egypt\"\n\"123ABC.00001.ME.276\",\"Test Bank Two\",\"Germany\"\n\"123ABC.00001.BR.826\",\"Test Bank Two - Branch\",\"United Kingdom\"\n\"123ABC.00002.ME.208\",\"Test Bank Nine\",\"Denmark\"\n\"234BCD.00000.SP.208\",\"Test Bank Three\",\"Denmark\"\n\"234BCD.00001.SF.818\",\"Sponsored Fund One\",\"Egypt\"\n\"234BCD.00002.SD.191\",\"Sponsored Direct Reporting NFFE\",\"Croatia\"\n\"234BCD.00003.SS.276\",\"Sponsored Subsidiary One\",\"Germany\"\n\"234BCD.00004.SS.276\",\"Sponsored Subsidiary Two\",\"Germany\"\n\"234BCD.00004.SB.108\",\"Sponsored Subsidiary Two - Branch\",\"Burundi\"",
+    "expected": {
+      "institutions": [
+        {
+          "giin": "123ABC.00000.LE.250",
+          "name": "Test Bank One, LLP",
+          "country": "France",
+          "category": "LE",
+          "isBranch": false
+        },
+        {
+          "giin": "123ABC.00000.BR.826",
+          "name": "Test Bank One, LLP - Branch",
+          "country": "United Kingdom",
+          "category": "BR",
+          "isBranch": true
+        },
+        {
+          "giin": "123ABC.00000.BR.036",
+          "name": "Test Bank One, LLP - Branch",
+          "country": "Australia",
+          "category": "BR",
+          "isBranch": true
+        },
+        {
+          "giin": "123ABC.00000.BR.076",
+          "name": "Test Bank One, LLP - Branch",
+          "country": "Brazil",
+          "category": "BR",
+          "isBranch": true
+        },
+        {
+          "giin": "123ABC.00000.BR.818",
+          "name": "Test Bank One, LLP - Branch",
+          "country": "Egypt",
+          "category": "BR",
+          "isBranch": true
+        },
+        {
+          "giin": "123ABC.00001.ME.276",
+          "name": "Test Bank Two",
+          "country": "Germany",
+          "category": "ME",
+          "isBranch": false
+        },
+        {
+          "giin": "123ABC.00001.BR.826",
+          "name": "Test Bank Two - Branch",
+          "country": "United Kingdom",
+          "category": "BR",
+          "isBranch": true
+        },
+        {
+          "giin": "123ABC.00002.ME.208",
+          "name": "Test Bank Nine",
+          "country": "Denmark",
+          "category": "ME",
+          "isBranch": false
+        },
+        {
+          "giin": "234BCD.00000.SP.208",
+          "name": "Test Bank Three",
+          "country": "Denmark",
+          "category": "SP",
+          "isBranch": false
+        },
+        {
+          "giin": "234BCD.00001.SF.818",
+          "name": "Sponsored Fund One",
+          "country": "Egypt",
+          "category": "SF",
+          "isBranch": false
+        },
+        {
+          "giin": "234BCD.00002.SD.191",
+          "name": "Sponsored Direct Reporting NFFE",
+          "country": "Croatia",
+          "category": "SD",
+          "isBranch": false
+        },
+        {
+          "giin": "234BCD.00003.SS.276",
+          "name": "Sponsored Subsidiary One",
+          "country": "Germany",
+          "category": "SS",
+          "isBranch": false
+        },
+        {
+          "giin": "234BCD.00004.SS.276",
+          "name": "Sponsored Subsidiary Two",
+          "country": "Germany",
+          "category": "SS",
+          "isBranch": false
+        },
+        {
+          "giin": "234BCD.00004.SB.108",
+          "name": "Sponsored Subsidiary Two - Branch",
+          "country": "Burundi",
+          "category": "SB",
+          "isBranch": true
+        }
+      ],
+      "countriesCount": 9
+    },
+    "freeText": [],
+    "rules": {
+      "arrayKeys": {
+        "institutions": "giin"
+      }
+    }
+  },
+  {
+    "id": "triage-refund",
+    "title": "Classify a taxpayer message (refund)",
+    "schema": "triage",
+    "instruction": "Classify the taxpayer message below and decide the next action. Write free-text fields in English.",
+    "context": "Hi, I e-filed my 2025 return on March 2, 2026 and I'm expecting a refund of $1,240.50. It's been two weeks: where is my refund? Do I need to call you?",
+    "expected": {
+      "category": "refund_status",
+      "urgency": "low || medium",
+      "entities": {
+        "formNumbers": [],
+        "dates": [
+          "2026-03-02"
+        ],
+        "amounts": [
+          1240.5
+        ]
+      },
+      "action": {
+        "type": "reply"
+      }
+    },
+    "freeText": [
+      "action.replyText"
+    ],
+    "note": "An e-filed refund normally arrives within 21 days; two weeks is still in the normal window, so a direct reply (check Where's My Refund, no need to call) is the right action."
+  },
+  {
+    "id": "triage-fraud",
+    "title": "Classify a taxpayer message (identity theft)",
+    "schema": "triage",
+    "instruction": "Classify the taxpayer message below and decide the next action. Write free-text fields in English.",
+    "context": "I just received a Form 1095-A and a letter about a $3,500 premium tax credit I never applied for. I have never used the Marketplace. I think someone used my Social Security number. The letter is dated February 10, 2026. Please help, this is urgent.",
+    "expected": {
+      "category": "identity_theft",
+      "urgency": "high",
+      "entities": {
+        "formNumbers": [
+          "1095-A"
+        ],
+        "dates": [
+          "2026-02-10"
+        ],
+        "amounts": [
+          3500
+        ]
+      },
+      "action": {
+        "type": "escalate",
+        "team": "fraud"
+      }
+    },
+    "freeText": [
+      "action.reason"
+    ]
+  },
+  {
+    "id": "triage-correction",
+    "title": "Classify a taxpayer message (correction)",
+    "schema": "triage",
+    "instruction": "Classify the taxpayer message below and decide the next action. Write free-text fields in English.",
+    "context": "My Form 1095-A shows a coverage start date of 1/1/2026, but my policy actually started on 3/1/2026. The monthly premium is also wrong: it says $421 but I pay $412. Please correct it and send me a new form.",
+    "expected": {
+      "category": "form_correction",
+      "urgency": "medium || low",
+      "entities": {
+        "formNumbers": [
+          "1095-A"
+        ],
+        "dates": [
+          "2026-01-01",
+          "2026-03-01"
+        ],
+        "amounts": [
+          421,
+          412
+        ]
+      },
+      "action": {
+        "type": "escalate",
+        "team": "corrections"
+      }
+    },
+    "freeText": [
+      "action.reason"
+    ]
+  }
+]

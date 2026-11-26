@@ -1,0 +1,70 @@
+/*
+ * Scan only src/ for class names. Tailwind registers its source root as a dependency of this file: with the default
+ * (project root) every write to .data/bench.db-shm (SQLite WAL, touched even by reads) re-compiled the CSS and
+ * pushed a dev refresh, and the refresh read the DB again -> an endless reload loop that froze the browser.
+ */
+@import 'tailwindcss' source('..');
+
+:root {
+  --bg: #f7f7f8;
+  --panel: #ffffff;
+  --fg: #17171a;
+  --muted: #6b6b76;
+  --line: #e4e4e9;
+  --accent: #4f46e5;
+  --accent-fg: #ffffff;
+  --good: #15803d;
+  --mid: #b45309;
+  --bad: #b91c1c;
+  --code: #f1f1f4;
+  /* charts (dataviz reference palette, validated against the panel surface) */
+  --series-1: #257de0;
+  --series-2: #f47230;
+  --grid: #e7e7e7;
+  --axis: #c2c2c2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0d10;
+    --panel: #16161b;
+    --fg: #ececf1;
+    --muted: #9a9aa6;
+    --line: #2a2a33;
+    --accent: #818cf8;
+    --accent-fg: #0d0d10;
+    --good: #4ade80;
+    --mid: #fbbf24;
+    --bad: #f87171;
+    --code: #1d1d24;
+    --series-1: #338ced;
+    --series-2: #e76624;
+    --grid: #303030;
+    --axis: #474747;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-good: var(--good);
+  --color-mid: var(--mid);
+  --color-bad: var(--bad);
+  --color-code: var(--code);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

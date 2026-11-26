@@ -1,0 +1,52 @@
+[
+  {
+    "id": "csv-table",
+    "title": "CSV → tabella",
+    "quick": true,
+    "file": "FFIListExample3.0.csv",
+    "reference": "FFIListExample3.0.md",
+    "instruction": "Converti in Markdown il file allegato."
+  },
+  {
+    "id": "image-infographic",
+    "title": "Immagine (infografica) → Markdown",
+    "quick": true,
+    "requires": [
+      "vision"
+    ],
+    "file": "wmr_fb_final.jpg",
+    "reference": "wmr_fb_final.md",
+    "instruction": "Converti in Markdown il file allegato."
+  },
+  {
+    "id": "pdf-instructions",
+    "title": "PDF (3 pagine, due colonne) → Markdown",
+    "quick": true,
+    "file": "i1095a.pdf",
+    "reference": "i1095a.md",
+    "instruction": "Converti in Markdown il file allegato.",
+    "forbid": [
+      "Catalog Number",
+      "63016Q",
+      "Oct 29, 2026",
+      "Department of the Treasury",
+      "Instructions for Form 1095-A (2026)"
+    ]
+  },
+  {
+    "id": "docx-guide",
+    "title": "Guida DOCX con tabella di 150 righe → Markdown",
+    "file": "17incddocguide.docx",
+    "reference": "17incddocguide.md",
+    "instruction": "Converti in Markdown il file allegato.",
+    "maxOutputTokens": 16384
+  },
+  {
+    "id": "xlsx-sheet",
+    "title": "Foglio XLSX largo (152 colonne) → Markdown",
+    "file": "17incdak.xlsx",
+    "reference": "17incdak.md",
+    "instruction": "Converti in Markdown il file allegato.",
+    "maxOutputTokens": 24576
+  }
+]

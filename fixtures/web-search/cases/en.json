@@ -1,0 +1,125 @@
+[
+  {
+    "id": "live-npm-ai-sdk-ollama",
+    "title": "Latest ai-sdk-ollama version (live)",
+    "quick": true,
+    "prompt": "What is the latest published version of the npm package ai-sdk-ollama? Give the version number.",
+    "live": {
+      "type": "npm-latest",
+      "package": "ai-sdk-ollama"
+    },
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "live-github-ollama",
+    "title": "Latest Ollama release (live)",
+    "quick": true,
+    "prompt": "What is the latest release of Ollama on GitHub (github.com/ollama/ollama)? Give the version number.",
+    "live": {
+      "type": "github-latest-release",
+      "repo": "ollama/ollama"
+    },
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "live-npm-ai",
+    "title": "Latest Vercel AI SDK version (live)",
+    "prompt": "What is the latest published version of the npm package \"ai\" (the Vercel AI SDK)?",
+    "live": {
+      "type": "npm-latest",
+      "package": "ai"
+    },
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "fact-1095a-deadline",
+    "title": "Published fact: Form 1095-A deadline",
+    "quick": true,
+    "prompt": "According to the IRS instructions for Form 1095-A (2026), by what date must Marketplaces furnish the statements to individuals?",
+    "reference": "On or before January 31, 2027 (for coverage in calendar year 2026).",
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "January 31, 2027",
+          "Jan 31, 2027",
+          "2027-01-31",
+          "1/31/2027"
+        ],
+        "label": "January 31, 2027"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "fact-soi-zip",
+    "title": "Published fact: ZIP matching rate",
+    "prompt": "According to the IRS Statistics of Income documentation guide for the tax year 2017 congressional district data, what share of returns match on the 9-digit ZIP code?",
+    "reference": "Nearly 97 percent.",
+    "expectTool": "any",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "97"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "fetch-url",
+    "title": "Fetch a given URL",
+    "prompt": "Read https://raw.githubusercontent.com/jagreehal/ai-sdk-ollama/main/packages/ai-sdk-ollama/package.json and tell me which Node.js version the package requires (the engines field).",
+    "reference": "The engines field requires node >=22 (as of 2026-11-26; judge against the fetched content in the trace if it differs).",
+    "expectTool": "fetch",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "22"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "restraint",
+    "title": "Restraint: no search needed",
+    "quick": true,
+    "prompt": "What is the capital of France? Answer in one word.",
+    "reference": "Paris. No web tool is needed.",
+    "expectTool": "none",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "Paris"
+        ],
+        "label": "Paris"
+      }
+    ]
+  }
+]

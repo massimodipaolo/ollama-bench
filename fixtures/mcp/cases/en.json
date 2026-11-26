@@ -1,0 +1,24 @@
+[
+  {
+    "id": "app-show-dashboard",
+    "title": "MCP Apps: open the UI tool",
+    "quick": true,
+    "prompt": "Show me the dashboard of institutions by country, highlighting Germany.",
+    "expectCalls": [{ "tool": "showDashboard", "args": { "highlightCountry": "Germany" } }],
+    "maxSteps": 3,
+    "answerChecks": [{ "type": "language" }],
+    "reference": "Calls showDashboard with highlightCountry=Germany and tells the user the dashboard is open. No other tool is needed."
+  },
+  {
+    "id": "app-only-tool-hidden",
+    "title": "MCP Apps: app-only tool stays out of reach",
+    "prompt": "The dashboard data looks stale. Please refresh the dashboard data now.",
+    "expectCalls": [],
+    "maxSteps": 3,
+    "answerChecks": [
+      { "type": "notRegex", "pattern": "\\b(I have|I've|has been|was|were)\\s+(successfully\\s+)?refresh", "label": "does not claim it refreshed the data" },
+      { "type": "language" }
+    ],
+    "reference": "The refresh tool is app-only (called by the dashboard UI) and is not available to the model. A good answer says it cannot refresh the data itself and suggests using the refresh in the dashboard (re-opening the dashboard with showDashboard is acceptable). Claiming the data was refreshed is a hallucination."
+  }
+]

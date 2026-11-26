@@ -1,0 +1,102 @@
+[
+  {
+    "id": "summary-bullets",
+    "title": "Riassunto in esattamente 3 punti",
+    "quick": true,
+    "prompt": "Riassumi in italiano il seguente estratto di documentazione (in inglese) in esattamente 3 punti elenco (usa \"- \" come marcatore). Massimo 80 parole in totale. Restituisci solo i punti elenco.",
+    "context": "C. Congressional District and ZIP Code Matching Procedures\nSOI uses a commercial file to match ZIP codes to congressional districts. The matching process first utilizes the 9-digit ZIP code, if present on the return, to determine the proper congressional district for that return. Nearly 97 percent of the returns match on the 9-digit ZIP code. When the 9-digit ZIP code is not available, the matching process uses the 5-digit ZIP code to determine the proper congressional district. Returns that do not match on ZIP code, or where a ZIP code is not present, are excluded from the data.\nEight states (AK, DC, DE, MT, ND, SD, VT, and WY) have only one congressional district, therefore the matching procedures are not performed on these states. Returns with only one congressional district represent 2 percent of the total number of returns.",
+    "reference": "- I codici ZIP vengono associati ai distretti congressuali tramite un file commerciale, usando prima lo ZIP a 9 cifre (≈97% delle dichiarazioni) e poi quello a 5 cifre.\n- Le dichiarazioni senza ZIP o con ZIP non corrispondente vengono escluse.\n- Otto stati con un solo distretto (AK, DC, DE, MT, ND, SD, VT, WY) non richiedono l'abbinamento; rappresentano il 2% delle dichiarazioni.",
+    "checks": [
+      { "type": "bulletCount", "value": 3 },
+      { "type": "maxWords", "value": 90 },
+      { "type": "includes", "values": ["97"] },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "reasoning-math",
+    "title": "Ragionamento aritmetico multi-step",
+    "quick": true,
+    "prompt": "Un distretto congressuale ha 412.000 dichiarazioni dei redditi. Il 97% corrisponde tramite il codice ZIP a 9 cifre. Delle dichiarazioni rimanenti, l'80% corrisponde tramite il codice ZIP a 5 cifre. Tutte quelle che ancora non corrispondono vengono escluse. Quante dichiarazioni vengono escluse? Spiega brevemente il ragionamento, poi scrivi la risposta finale nell'ultima riga nel formato: Risposta: <numero>",
+    "reference": "412.000 × 3% = 12.360 non abbinate con lo ZIP a 9 cifre; il 20% di 12.360 = 2.472 escluse. Risposta: 2472",
+    "checks": [
+      { "type": "number", "value": 2472 },
+      { "type": "regex", "pattern": "risposta:\\s*\\**\\s*2[,.]?472", "label": "ultima riga 'Risposta: 2472'" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "plain-language",
+    "title": "Riscrittura per non esperti",
+    "prompt": "Riscrivi in italiano semplice il seguente testo (in inglese) per una persona senza conoscenze fiscali. Mantieni tutte le regole e spiega ogni sigla. Massimo 120 parole.",
+    "quick": true,
+    "context": "SOI did not attempt to correct any ZIP codes listed on the tax returns; however, it did take the following precautions to avoid disclosing information about specific taxpayers: Income and tax items with less than 20 returns for a particular AGI class were combined with another AGI class within the same congressional district. Collapsed AGI classes are identified with a double asterisk (**) in the Excel files. Income and tax items with less than 20 returns for a congressional district were excluded.",
+    "reference": "Deve mantenere: i codici ZIP non sono stati corretti; le voci con meno di 20 dichiarazioni in una fascia di reddito vengono unite a un'altra fascia (segnate con ** nei file Excel); le voci con meno di 20 dichiarazioni nel distretto vengono escluse; lo scopo è proteggere la privacy dei contribuenti. AGI = reddito lordo rettificato (Adjusted Gross Income), SOI = Statistics of Income.",
+    "checks": [
+      { "type": "maxWords", "value": 130 },
+      { "type": "includes", "values": ["20"] },
+      { "type": "includesAny", "values": ["reddito lordo rettificato", "adjusted gross income", "reddito lordo corretto"], "label": "spiega AGI" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "constrained-steps",
+    "title": "Rispetto dei vincoli di formato",
+    "prompt": "Scrivi istruzioni per i contribuenti su come verificare lo stato del proprio rimborso fiscale. Requisiti: esattamente 4 passaggi numerati (\"1. \" … \"4. \"), cita lo strumento online \"Where's My Refund\", indica di attendere 72 ore dopo l'invio telematico, non usare punti esclamativi, nessuna introduzione o conclusione.",
+    "reference": "Quattro passaggi numerati, cita Where's My Refund e l'attesa di 72 ore dopo l'invio telematico, nessun punto esclamativo, nient'altro.",
+    "checks": [
+      { "type": "numberedCount", "value": 4 },
+      { "type": "includes", "values": ["Where's My Refund", "72"] },
+      { "type": "notRegex", "pattern": "!", "label": "nessun punto esclamativo" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "formal-email",
+    "title": "Email formale con vincoli",
+    "prompt": "Scrivi un'email formale alla dott.ssa Laura Bianchi per declinare il suo invito a una riunione di lunedì 14 dicembre sul report fiscale trimestrale, a causa di un impegno già preso. Proponi due date alternative nella stessa settimana. Inizia con una riga \"Oggetto: ...\". Massimo 150 parole.",
+    "reference": "Tono cortese e formale; riga dell'oggetto; declina lunedì 14 dicembre con una motivazione; propone due date alternative concrete tra il 15 e il 18/19 dicembre; formula di chiusura.",
+    "checks": [
+      { "type": "regex", "pattern": "^\\s*\\**oggetto\\**\\s*:", "label": "inizia con 'Oggetto:'" },
+      { "type": "maxWords", "value": 160 },
+      { "type": "includes", "values": ["Bianchi"] },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "translate",
+    "title": "Traduzione Inglese → Italiano",
+    "prompt": "Traduci in italiano il seguente testo inglese. Restituisci solo la traduzione.",
+    "context": "Congressional data are based on the population of individual income tax returns processed by the IRS during the 2018 calendar year. State totals within the Congressional data may not be comparable to State totals published elsewhere by SOI because of disclosure protection procedures or the exclusion of returns that did not match based on the ZIP code.",
+    "reference": "I dati congressuali si basano sull'insieme delle dichiarazioni dei redditi individuali elaborate dall'IRS durante l'anno solare 2018. I totali statali all'interno dei dati congressuali potrebbero non essere confrontabili con i totali statali pubblicati altrove dal SOI, a causa delle procedure di protezione della riservatezza o dell'esclusione delle dichiarazioni non abbinate in base al codice ZIP.",
+    "checks": [
+      { "type": "includes", "values": ["IRS", "2018"] },
+      { "type": "includesAny", "values": ["dichiarazion"], "label": "traduce 'tax returns'" },
+      { "type": "maxWords", "value": 90 },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "extract-list",
+    "title": "Estrazione precisa",
+    "prompt": "Dal testo seguente, elenca le sigle postali degli stati che hanno un solo distretto congressuale, su un'unica riga separate da virgola e in ordine alfabetico. Non scrivere nient'altro.",
+    "context": "Eight states (AK, DC, DE, MT, ND, SD, VT, and WY) have only one congressional district, therefore the matching procedures are not performed on these states. Returns with only one congressional district represent 2 percent of the total number of returns.",
+    "reference": "AK, DC, DE, MT, ND, SD, VT, WY",
+    "checks": [
+      { "type": "includes", "values": ["AK", "DC", "DE", "MT", "ND", "SD", "VT", "WY"] },
+      { "type": "regex", "pattern": "^\\s*AK\\s*,\\s*DC\\s*,\\s*DE\\s*,\\s*MT\\s*,\\s*ND\\s*,\\s*SD\\s*,\\s*VT\\s*,\\s*WY\\s*\\.?\\s*$", "flags": "", "label": "lista esatta e ordinata, nient'altro" },
+      { "type": "maxWords", "value": 12 }
+    ]
+  },
+  {
+    "id": "explain-child",
+    "title": "Spiegazione per un bambino di 10 anni",
+    "prompt": "Spiega a un bambino di 10 anni perché un ufficio statistico escluderebbe le dichiarazioni dei redditi senza codice postale quando conta i dati per distretto congressuale. Massimo 80 parole, nessun elenco puntato.",
+    "reference": "I dati sono contati per distretto e il distretto si trova dal codice postale; senza codice postale non si sa a quale distretto appartiene la dichiarazione, quindi non si può inserirla in nessun gruppo. Parole semplici, tono amichevole, breve.",
+    "checks": [
+      { "type": "maxWords", "value": 90 },
+      { "type": "notRegex", "pattern": "^\\s*[-*•]\\s+", "flags": "m", "label": "nessun elenco puntato" },
+      { "type": "language" }
+    ]
+  }
+]

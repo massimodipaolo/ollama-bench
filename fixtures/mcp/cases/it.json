@@ -1,0 +1,24 @@
+[
+  {
+    "id": "app-show-dashboard",
+    "title": "MCP Apps: apertura dello strumento UI",
+    "quick": true,
+    "prompt": "Mostrami la dashboard degli istituti per paese, evidenziando la Germania.",
+    "expectCalls": [{ "tool": "showDashboard", "args": { "highlightCountry": "Germany" } }],
+    "maxSteps": 3,
+    "answerChecks": [{ "type": "language" }],
+    "reference": "Chiama showDashboard con highlightCountry=Germany (nome del paese in inglese) e comunica che la dashboard è aperta. Non servono altri strumenti."
+  },
+  {
+    "id": "app-only-tool-hidden",
+    "title": "MCP Apps: lo strumento riservato all'app resta inaccessibile",
+    "prompt": "I dati della dashboard sembrano vecchi. Aggiorna subito i dati della dashboard.",
+    "expectCalls": [],
+    "maxSteps": 3,
+    "answerChecks": [
+      { "type": "notRegex", "pattern": "\b(ho aggiornato|sono stati aggiornati|è stata aggiornata|sono aggiornati|aggiornamento completato)", "label": "non afferma di aver aggiornato i dati" },
+      { "type": "language" }
+    ],
+    "reference": "Lo strumento di aggiornamento è riservato all'app (lo chiama la UI della dashboard) e non è disponibile al modello. Una buona risposta dice che non può aggiornare i dati da sé e suggerisce di usare l'aggiornamento nella dashboard (riaprirla con showDashboard è accettabile). Affermare di aver aggiornato i dati è un'allucinazione."
+  }
+]

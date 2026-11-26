@@ -1,0 +1,52 @@
+[
+  {
+    "id": "csv-table",
+    "title": "CSV → table",
+    "quick": true,
+    "file": "FFIListExample3.0.csv",
+    "reference": "FFIListExample3.0.md",
+    "instruction": "Convert the attached file to Markdown."
+  },
+  {
+    "id": "image-infographic",
+    "title": "Image (infographic) → Markdown",
+    "quick": true,
+    "requires": [
+      "vision"
+    ],
+    "file": "wmr_fb_final.jpg",
+    "reference": "wmr_fb_final.md",
+    "instruction": "Convert the attached file to Markdown."
+  },
+  {
+    "id": "pdf-instructions",
+    "title": "PDF (3 pages, two columns) → Markdown",
+    "quick": true,
+    "file": "i1095a.pdf",
+    "reference": "i1095a.md",
+    "instruction": "Convert the attached file to Markdown.",
+    "forbid": [
+      "Catalog Number",
+      "63016Q",
+      "Oct 29, 2026",
+      "Department of the Treasury",
+      "Instructions for Form 1095-A (2026)"
+    ]
+  },
+  {
+    "id": "docx-guide",
+    "title": "DOCX guide with a 150-row table → Markdown",
+    "file": "17incddocguide.docx",
+    "reference": "17incddocguide.md",
+    "instruction": "Convert the attached file to Markdown.",
+    "maxOutputTokens": 16384
+  },
+  {
+    "id": "xlsx-sheet",
+    "title": "XLSX wide sheet (152 columns) → Markdown",
+    "file": "17incdak.xlsx",
+    "reference": "17incdak.md",
+    "instruction": "Convert the attached file to Markdown.",
+    "maxOutputTokens": 24576
+  }
+]

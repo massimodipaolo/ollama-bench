@@ -1,0 +1,100 @@
+[
+  {
+    "id": "infographic-ocr",
+    "title": "OCR: headline and highlighted text",
+    "quick": true,
+    "images": ["wmr_fb_final.jpg"],
+    "prompt": "Transcribe exactly the headline of this image and the time frame highlighted in color.",
+    "reference": "Headline: \"When will I get my refund?\". Highlighted (orange/red) time frame: \"within 10 - 21 days\".",
+    "checks": [
+      { "type": "includes", "values": ["When will I get my refund"] },
+      { "type": "regex", "pattern": "10\\s*[-–—]\\s*21\\s*days", "label": "\"10 - 21 days\"" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "infographic-steps",
+    "title": "Layout: numbered steps in order",
+    "quick": true,
+    "images": ["wmr_fb_final.jpg"],
+    "prompt": "The image contains numbered steps. List every step number with its heading, in order.",
+    "reference": "1. When to check...  2. What you need...  3. How...",
+    "checks": [
+      { "type": "inOrder", "values": ["When to check", "What you need", "How"], "label": "3 steps in order" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "infographic-qa",
+    "title": "Visual Q&A across panels",
+    "images": ["wmr_fb_final.jpg"],
+    "prompt": "According to the image, which three pieces of information do I need, and how long after mailing a paper return should I check?",
+    "reference": "Social Security Number, filing status, exact refund amount. Check 4 weeks after mailing a paper return.",
+    "checks": [
+      { "type": "includes", "values": ["Social Security Number", "Filing status", "refund amount"] },
+      { "type": "regex", "pattern": "4\\s*weeks|four\\s*weeks", "label": "4 weeks" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "infographic-trap",
+    "title": "Hallucination trap: absent phone number",
+    "images": ["wmr_fb_final.jpg"],
+    "prompt": "What toll-free phone number does this image tell me to call?",
+    "reference": "No phone number appears in the image. It actually says NOT to call the toll-free number unless Where's My Refund says so.",
+    "checks": [
+      { "type": "notRegex", "pattern": "\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}", "label": "no invented phone number" },
+      { "type": "includesAny", "values": ["not call", "no phone", "no toll-free number", "doesn't", "does not", "isn't", "is not", "not shown", "not provided", "no number", "not visible", "not include"], "label": "says no number is given" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "pdf-page-facts",
+    "title": "Document page: small print",
+    "quick": true,
+    "images": ["i1095a-p1.png"],
+    "prompt": "From this page: what is the catalog number, what date is printed at the bottom left, and what is the deadline to furnish statements to individuals?",
+    "reference": "Catalog Number 63016Q; date at bottom left: Oct 29, 2026; deadline: on or before January 31, 2027 (for coverage in calendar year 2026).",
+    "checks": [
+      { "type": "includes", "values": ["63016Q"] },
+      { "type": "includesAny", "values": ["Oct 29, 2026", "October 29, 2026", "2026-10-29", "10/29/2026"], "label": "Oct 29, 2026" },
+      { "type": "includesAny", "values": ["January 31, 2027", "Jan 31, 2027", "2027-01-31", "1/31/2027"], "label": "January 31, 2027" },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "pdf-reading-order",
+    "title": "Two-column reading order",
+    "images": ["i1095a-p1.png"],
+    "prompt": "This page has two columns. List, in reading order, the headings and subheadings of the LEFT column only.",
+    "reference": "Future Developments; Additional Information; General Instructions; Purpose of Form; Who Must File; When To File; How To File.",
+    "checks": [
+      { "type": "inOrder", "values": ["Future Developments", "Additional Information", "General Instructions", "Purpose of Form", "Who Must File", "When To File", "How To File"], "label": "7 left-column headings in order" },
+      { "type": "excludes", "values": ["Specific Instructions", "Statements to Individuals"] }
+    ]
+  },
+  {
+    "id": "pdf-page3-details",
+    "title": "Document page: details lookup",
+    "images": ["i1095a-p3.png"],
+    "prompt": "What is the estimated average time for preparing the form, and to which postal address can comments be sent?",
+    "reference": "Preparing the form: 3 min. Address: Internal Revenue Service, Tax Forms and Publications, 1111 Constitution Ave. NW, IR-6526, Washington, DC 20224.",
+    "checks": [
+      { "type": "regex", "pattern": "3\\s*min", "label": "3 min" },
+      { "type": "includes", "values": ["1111 Constitution", "IR-6526", "20224"] },
+      { "type": "language" }
+    ]
+  },
+  {
+    "id": "infographic-describe",
+    "title": "Accessibility description",
+    "images": ["wmr_fb_final.jpg"],
+    "prompt": "Describe this image for a visually impaired person in 3 to 4 sentences: what it is, who published it, and the key information it conveys.",
+    "reference": "An IRS informational graphic titled \"When will I get my refund?\" (IRS logo top left). It says e-filers can generally expect refunds within 10-21 days and asks not to call the toll-free number unless Where's My Refund says so. Three numbered blue panels: when to check (72 hours after e-filing, 4 weeks after mailing a paper return), what you need (SSN, filing status, exact refund amount), and how (go to Where's My Refund).",
+    "checks": [
+      { "type": "includesAny", "values": ["IRS", "Internal Revenue Service"], "label": "mentions the IRS" },
+      { "type": "maxWords", "value": 130 },
+      { "type": "language" }
+    ]
+  }
+]

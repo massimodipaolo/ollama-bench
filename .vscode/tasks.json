@@ -1,0 +1,49 @@
+{
+  // AI SDK upgrade workflow: check → update → verify → re-benchmark.
+  // Run from the Command Palette: "Tasks: Run Task".
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "AI SDK: check outdated",
+      "detail": "List newer versions of ai, @ai-sdk/*, ai-sdk-ollama",
+      "type": "shell",
+      "command": "pnpm outdated ai \"@ai-sdk/*\" ai-sdk-ollama",
+      "problemMatcher": []
+    },
+    {
+      "label": "AI SDK: update packages",
+      "detail": "Update ai, @ai-sdk/* and ai-sdk-ollama to latest, then typecheck and smoke-test",
+      "type": "shell",
+      "command": "pnpm up --latest ai \"@ai-sdk/*\" ai-sdk-ollama",
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "AI SDK: verify",
+      "detail": "Typecheck, lint, and one real call to Ollama + each judge",
+      "type": "shell",
+      "command": "pnpm typecheck && pnpm lint && pnpm smoke",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "AI SDK: update + verify",
+      "detail": "Update the SDK packages, then typecheck, lint and smoke-test",
+      "dependsOrder": "sequence",
+      "dependsOn": ["AI SDK: update packages", "AI SDK: verify"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Bench: re-run after SDK update (quick)",
+      "detail": "Runs every test × model whose last run used other SDK versions (app must be running on :3000)",
+      "type": "shell",
+      "command": "pnpm bench --skip-existing",
+      "problemMatcher": []
+    },
+    {
+      "label": "Bench: plan (dry run)",
+      "type": "shell",
+      "command": "pnpm bench --skip-existing --dry-run",
+      "problemMatcher": []
+    }
+  ]
+}

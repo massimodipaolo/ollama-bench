@@ -1,0 +1,566 @@
+[
+  {
+    "id": "q-furnish-deadline",
+    "title": "Deadline to furnish statements",
+    "quick": true,
+    "query": "By when must Marketplaces furnish Form 1095-A statements to individuals for 2026 coverage?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "on or before January 31, 2027"
+      }
+    ],
+    "answer": "On or before January 31, 2027 (for coverage in calendar year 2026); if that falls on a weekend or legal holiday, by the next business day.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "January 31, 2027",
+          "Jan 31, 2027",
+          "2027-01-31",
+          "1/31/2027"
+        ],
+        "label": "January 31, 2027"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-who-files",
+    "title": "Who must file",
+    "query": "Who is required to file Form 1095-A?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "Health Insurance Marketplaces must file Form 1095-A"
+      }
+    ],
+    "answer": "Health Insurance Marketplaces, for all enrollments in qualified health plans in the individual market through the Marketplace.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "Marketplace"
+        ],
+        "label": "the Marketplaces"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-excluded-plans",
+    "title": "Plans excluded from reporting",
+    "query": "For which kinds of health plans should no Form 1095-A be filed?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "Do not file a Form 1095-A for a catastrophic health plan"
+      },
+      {
+        "doc": "i1095a",
+        "contains": "Don't furnish a Form 1095-A for a catastrophic health plan"
+      }
+    ],
+    "answer": "Catastrophic health plans and separate (stand-alone) dental plans.",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "catastrophic",
+          "dental"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-ssn-truncation",
+    "title": "SSN truncation",
+    "query": "Can part of a person's social security number be hidden on the copy that is mailed to them?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "showing only the last 4 digits"
+      }
+    ],
+    "answer": "By showing only the last 4 digits and replacing the first 5 digits with asterisks or Xs; truncation isn't allowed on forms filed with the IRS.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "last 4",
+          "last four"
+        ],
+        "label": "last 4 digits"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-electronic-consent",
+    "title": "Electronic statements",
+    "query": "Can the statement be sent by email, and what is needed first?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "affirmative consent to furnish a statement electronically"
+      }
+    ],
+    "answer": "Yes, but only if the recipient affirmatively consents to electronic delivery (on paper or electronically; paper consent must be confirmed electronically). It can then be emailed or made accessible on the Marketplace website.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "consent"
+        ],
+        "label": "mentions consent"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-policy-number",
+    "title": "Long policy numbers",
+    "quick": true,
+    "query": "My policy ID is really long, more than fifteen characters. What do I write in the policy number box?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "enter only the last 15 characters"
+      }
+    ],
+    "answer": "Only the last 15 characters of the policy number.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "last 15"
+        ],
+        "label": "last 15 characters"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-coverage-start",
+    "title": "Coverage start date",
+    "query": "Which date should be entered on line 10 if the policy was already in effect at the start of the year?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "enter 1/1/2026"
+      }
+    ],
+    "answer": "1/1/2026.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "1/1/2026",
+          "January 1, 2026",
+          "2026-01-01"
+        ],
+        "label": "1/1/2026"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-many-individuals",
+    "title": "More than five covered individuals",
+    "query": "The policy covers seven family members but the form only has room for some of them. What should be done?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "more than five covered individuals"
+      }
+    ],
+    "answer": "Complete one or more additional Forms 1095-A, Part II.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "additional"
+        ],
+        "label": "additional forms"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-slcsp",
+    "title": "Column B (SLCSP)",
+    "query": "What premium is reported in column B of Part III?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "second lowest cost silver plan"
+      }
+    ],
+    "answer": "The premium of the applicable second lowest cost silver plan (SLCSP) used as the benchmark to compute monthly advance credit payments.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "second lowest cost silver plan",
+          "SLCSP"
+        ],
+        "label": "SLCSP"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-void",
+    "title": "Statement sent in error",
+    "query": "A Form 1095-A was sent by mistake for a stand-alone dental plan. How is it corrected?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "check the \"VOID\" box"
+      }
+    ],
+    "answer": "Send a duplicate of that Form 1095-A with the \"VOID\" box checked, to the IRS and to the recipient, as soon as possible.",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "VOID"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-time-estimate",
+    "title": "Time to prepare the form",
+    "query": "How long does it take on average to prepare Form 1095-A?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "Preparing the form"
+      }
+    ],
+    "answer": "3 minutes.",
+    "answerChecks": [
+      {
+        "type": "regex",
+        "pattern": "\\b3\\s*min",
+        "label": "3 min"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-comments-address",
+    "title": "Address for comments",
+    "query": "Where can I mail comments about the time estimates for this form?",
+    "relevant": [
+      {
+        "doc": "i1095a",
+        "contains": "1111 Constitution Ave"
+      }
+    ],
+    "answer": "Internal Revenue Service, Tax Forms and Publications, 1111 Constitution Ave. NW, IR-6526, Washington, DC 20224 (or online via IRS.gov/FormComments).",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "1111 Constitution",
+          "20224"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-zip-match-rate",
+    "title": "9-digit ZIP match rate",
+    "quick": true,
+    "query": "What share of tax returns are matched to a congressional district using the 9-digit ZIP code?",
+    "relevant": [
+      {
+        "doc": "17incddocguide",
+        "contains": "Nearly 97 percent"
+      }
+    ],
+    "answer": "Nearly 97 percent.",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "97"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-single-district",
+    "title": "Single-district states",
+    "query": "Which states have only one congressional district?",
+    "relevant": [
+      {
+        "doc": "17incddocguide",
+        "contains": "Eight states (AK, DC"
+      }
+    ],
+    "answer": "AK, DC, DE, MT, ND, SD, VT and WY.",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "AK",
+          "DC",
+          "DE",
+          "MT",
+          "ND",
+          "SD",
+          "VT",
+          "WY"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-disclosure-20",
+    "title": "Disclosure protection threshold",
+    "query": "How is taxpayer privacy protected when very few returns fall into a district for some income item?",
+    "relevant": [
+      {
+        "doc": "17incddocguide",
+        "contains": "less than 20 returns for a congressional district were excluded"
+      }
+    ],
+    "answer": "They are excluded from the data (items with fewer than 20 returns in an AGI class are combined with another AGI class).",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "exclud",
+          "omitted",
+          "removed"
+        ],
+        "label": "excluded"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-apo",
+    "title": "APO addresses",
+    "query": "Are military mail addresses counted in the district statistics?",
+    "relevant": [
+      {
+        "doc": "17incddocguide",
+        "contains": "Army Post Office"
+      }
+    ],
+    "answer": "No: returns with APO/FPO addresses, foreign addresses and addresses in Puerto Rico and the territories are excluded.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "no",
+          "excluded",
+          "not included"
+        ],
+        "label": "says excluded"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-agi-variable",
+    "title": "AGI variable name",
+    "quick": true,
+    "query": "Which variable holds the adjusted gross income amount, and which Form 1040 line does it come from?",
+    "relevant": [
+      {
+        "doc": "17incddocguide",
+        "contains": "| A00100 |"
+      }
+    ],
+    "answer": "A00100, Form 1040 line 37 (1040A line 21, 1040EZ line 4).",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "A00100",
+          "37"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-agi-stub",
+    "title": "AGI size classes",
+    "query": "What income range does AGI_STUB value 7 stand for?",
+    "relevant": [
+      {
+        "doc": "17incddocguide",
+        "contains": "7 = $100,000 under $200,000"
+      }
+    ],
+    "answer": "$100,000 under $200,000.",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "100,000",
+          "200,000"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-refund-needs",
+    "title": "What you need to check a refund",
+    "quick": true,
+    "query": "What information do I need to check the status of my refund?",
+    "relevant": [
+      {
+        "doc": "wmr_fb_final",
+        "contains": "Exact refund amount"
+      }
+    ],
+    "answer": "Social Security Number, filing status and the exact refund amount.",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "Social Security",
+          "filing status",
+          "refund amount"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-paper-return",
+    "title": "When to check after a paper return",
+    "query": "How long after mailing a paper return should I check my refund?",
+    "relevant": [
+      {
+        "doc": "wmr_fb_final",
+        "contains": "4 weeks after you mailed"
+      }
+    ],
+    "answer": "4 weeks after mailing the paper return.",
+    "answerChecks": [
+      {
+        "type": "regex",
+        "pattern": "4\\s*weeks|four\\s*weeks",
+        "label": "4 weeks"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-giin-country",
+    "title": "Table lookup by GIIN",
+    "quick": true,
+    "query": "In which country is the institution with GIIN 456DEF.00002.BR.344 located?",
+    "relevant": [
+      {
+        "doc": "FFIListExample3.0",
+        "contains": "456DEF.00002.BR.344"
+      }
+    ],
+    "answer": "Hong Kong (Test Bank Ten, LLP - Branch).",
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "Hong Kong"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ]
+  },
+  {
+    "id": "q-unanswerable-penalty",
+    "title": "Not in the documents (late filing penalty)",
+    "quick": true,
+    "query": "What is the dollar penalty for a Marketplace that files Form 1095-A late?",
+    "relevant": [],
+    "unanswerable": true,
+    "answer": "The documents do not state any penalty amount; the answer must say the information is not available in the provided sources.",
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "not mention",
+          "not specif",
+          "not state",
+          "not provide",
+          "not include",
+          "no information",
+          "does not",
+          "doesn't",
+          "not contain",
+          "not found",
+          "not available",
+          "no mention",
+          "not covered",
+          "not in the"
+        ],
+        "label": "says it is not in the sources"
+      },
+      {
+        "type": "notRegex",
+        "pattern": "\\$\\s?\\d",
+        "label": "no invented amount"
+      },
+      {
+        "type": "language"
+      }
+    ]
+  }
+]

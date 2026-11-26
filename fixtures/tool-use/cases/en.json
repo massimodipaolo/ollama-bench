@@ -1,0 +1,269 @@
+[
+  {
+    "id": "single-lookup",
+    "title": "Single tool call",
+    "quick": true,
+    "prompt": "What is the name and the country of the institution with GIIN 234BCD.00004.SB.132?",
+    "expectCalls": [
+      {
+        "tool": "lookupInstitution",
+        "args": {
+          "giin": "234BCD.00004.SB.132"
+        }
+      }
+    ],
+    "maxSteps": 3,
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "Sponsored Subsidiary Two"
+        ]
+      },
+      {
+        "type": "includesAny",
+        "values": [
+          "Cape Verd"
+        ],
+        "label": "mentions Cape Verdi"
+      },
+      {
+        "type": "language"
+      }
+    ],
+    "reference": "lookupInstitution → Sponsored Subsidiary Two - Branch, located in Cape Verdi (as spelled in the list)."
+  },
+  {
+    "id": "search-count",
+    "title": "Search + count",
+    "quick": true,
+    "prompt": "How many institutions in the FFI list are located in Germany? List their names.",
+    "expectCalls": [
+      {
+        "tool": "searchInstitutions",
+        "args": {
+          "country": "Germany"
+        }
+      }
+    ],
+    "maxSteps": 3,
+    "answerChecks": [
+      {
+        "type": "number",
+        "value": 6
+      },
+      {
+        "type": "includes",
+        "values": [
+          "Test Bank Two",
+          "Sponsored Subsidiary One",
+          "Sponsored Subsidiary Two",
+          "Test Bank Four",
+          "Test Bank Ten"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ],
+    "reference": "6 institutions: Test Bank Two; Sponsored Subsidiary One; Sponsored Subsidiary Two; Test Bank Four (two entries with different GIINs: 345CDE.99999.SL.276 and BBB123.00000.LE.276); Test Bank Ten, LLP."
+  },
+  {
+    "id": "chain-dates",
+    "title": "Multi-step chain (rules → date math)",
+    "quick": true,
+    "prompt": "I e-filed my tax return on 2026-03-02. From which date can I start checking my refund status, and by which date should I expect the refund at the latest? Use the tools to compute exact dates.",
+    "expectCalls": [
+      {
+        "tool": "refundTimeline",
+        "args": {
+          "filingMethod": "e-file"
+        }
+      },
+      {
+        "tool": "addDays",
+        "args": {
+          "date": "2026-03-02",
+          "days": 3
+        }
+      },
+      {
+        "tool": "addDays",
+        "args": {
+          "date": "2026-03-02",
+          "days": 21
+        }
+      }
+    ],
+    "maxSteps": 6,
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "2026-03-05",
+          "March 5",
+          "5 March",
+          "Mar 5",
+          "3/5/2026",
+          "05/03/2026"
+        ],
+        "label": "check status from 2026-03-05"
+      },
+      {
+        "type": "includesAny",
+        "values": [
+          "2026-03-23",
+          "March 23",
+          "23 March",
+          "Mar 23",
+          "3/23/2026",
+          "23/03/2026"
+        ],
+        "label": "refund by 2026-03-23"
+      },
+      {
+        "type": "language"
+      }
+    ],
+    "reference": "refundTimeline(e-file) → check after 72 hours, refund within 10–21 days. 2026-03-02 + 3 days = 2026-03-05 (check status from); + 21 days = 2026-03-23 (latest expected refund). Should mention Where's My Refund."
+  },
+  {
+    "id": "search-calc",
+    "title": "Search + calculation",
+    "prompt": "What percentage of the institutions located in Denmark are branches? Round to one decimal place.",
+    "expectCalls": [
+      {
+        "tool": "searchInstitutions",
+        "args": {
+          "country": "Denmark"
+        }
+      }
+    ],
+    "maxSteps": 5,
+    "answerChecks": [
+      {
+        "type": "number",
+        "value": 40,
+        "tolerance": 0.05
+      },
+      {
+        "type": "language"
+      }
+    ],
+    "reference": "Denmark has 5 institutions; 2 are branches (Test Bank Four - Branch, and the entry with a garbled dash 'Test Bank Four � Branch'), so 2/5 = 40.0%."
+  },
+  {
+    "id": "parallel-lookups",
+    "title": "Two lookups and a comparison",
+    "prompt": "Are the institutions with GIIN 456DEF.00002.BR.344 and 567EFG.99999.BR.036 located in the same country? Tell me both countries.",
+    "expectCalls": [
+      {
+        "tool": "lookupInstitution",
+        "args": {
+          "giin": "456DEF.00002.BR.344"
+        }
+      },
+      {
+        "tool": "lookupInstitution",
+        "args": {
+          "giin": "567EFG.99999.BR.036"
+        }
+      }
+    ],
+    "maxSteps": 4,
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "Hong Kong",
+          "Australia"
+        ]
+      },
+      {
+        "type": "includesAny",
+        "values": [
+          "no",
+          "not the same",
+          "different"
+        ],
+        "label": "says they differ"
+      },
+      {
+        "type": "language"
+      }
+    ],
+    "reference": "No: 456DEF.00002.BR.344 (Test Bank Ten, LLP - Branch) is in Hong Kong; 567EFG.99999.BR.036 (Test Bank Eleven - Branch) is in Australia."
+  },
+  {
+    "id": "not-found",
+    "title": "Handle a missing record",
+    "prompt": "Give me the name of the institution with GIIN 999ZZZ.00000.LE.999.",
+    "expectCalls": [
+      {
+        "tool": "lookupInstitution",
+        "args": {
+          "giin": "999ZZZ.00000.LE.999"
+        }
+      }
+    ],
+    "maxSteps": 4,
+    "answerChecks": [
+      {
+        "type": "includesAny",
+        "values": [
+          "not found",
+          "no institution",
+          "not in the",
+          "does not exist",
+          "doesn't exist",
+          "could not find",
+          "couldn't find",
+          "no record",
+          "not present",
+          "no results",
+          "no result",
+          "no match",
+          "not listed",
+          "unable to find",
+          "unable to locate",
+          "isn't in the",
+          "is not in the",
+          "returned nothing",
+          "no entry",
+          "no such"
+        ],
+        "label": "reports not found"
+      },
+      {
+        "type": "excludes",
+        "values": [
+          "Test Bank"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ],
+    "reference": "The lookup returns found=false: the answer must say that no institution with that GIIN is in the list, without inventing a name."
+  },
+  {
+    "id": "no-tool-needed",
+    "title": "Restraint: no tool needed",
+    "prompt": "What does the acronym GIIN stand for? Answer in one sentence.",
+    "expectCalls": [],
+    "expectNoTools": true,
+    "maxSteps": 1,
+    "answerChecks": [
+      {
+        "type": "includes",
+        "values": [
+          "Global Intermediary Identification Number"
+        ]
+      },
+      {
+        "type": "language"
+      }
+    ],
+    "reference": "Global Intermediary Identification Number. No tool call is needed."
+  }
+]
