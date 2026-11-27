@@ -36,6 +36,13 @@
       "when": 1795772260933,
       "tag": "0004_server_instances",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795776987007,
+      "tag": "0005_model_experts",
+      "breakpoints": true
     }
   ]
 }

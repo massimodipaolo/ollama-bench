@@ -101,6 +101,8 @@ export interface TestDefinition<C extends BaseCase = BaseCase> {
   judged?: boolean;
   /** hours-long benchmark: started from the CLI (pnpm bench), not offered in the run form */
   cliOnly?: boolean;
+  /** Ollama models the test loads besides the model under test (e.g. RAG's embedder): released like the model */
+  helperModels?: (config: SessionConfig) => { name: string; embedding: boolean }[];
   rubric: Rubric;
   /** default num_ctx for this test */
   numCtx?: number;

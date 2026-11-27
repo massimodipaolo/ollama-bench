@@ -255,6 +255,9 @@ export interface ModelIndexRow {
   parameterSize: string | null;
   quantization: string | null;
   capabilities: string[];
+  /** mixture-of-experts: total / active per token (latest version of the model; null = dense or unknown) */
+  experts: number | null;
+  expertsActive: number | null;
   digests: number;
   runs: number;
   tests: number;
@@ -275,6 +278,8 @@ export function modelIndex(): ModelIndexRow[] {
       parameterSize: m.parameterSize,
       quantization: m.quantization,
       capabilities: m.capabilities,
+      experts: m.experts,
+      expertsActive: m.expertsActive,
       digests: 0,
       runs: 0,
       tests: 0,

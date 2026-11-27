@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { RunForm } from './run-form';
 import { ActiveRuns } from './active-runs';
+import { HostMemory } from './host-memory';
 
 export default function RunPage() {
   return (
@@ -13,6 +14,7 @@ export default function RunPage() {
         </p>
       </div>
       <ActiveRuns />
+      <HostMemory />
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <RunForm />
       </Suspense>

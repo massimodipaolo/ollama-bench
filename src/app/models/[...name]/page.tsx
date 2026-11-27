@@ -8,6 +8,7 @@ import { listOllamaModels } from '@/lib/ollama';
 import { RunsTable, ExportLinks } from '@/components/runs-table';
 import { HistoryChart, HistoryLegend, type HistoryPoint } from '@/components/charts';
 import { Score } from '@/components/score';
+import { MoeBadge } from '@/components/moe-badge';
 
 export default function ModelPage({ params }: PageProps<'/models/[...name]'>) {
   return (
@@ -43,7 +44,14 @@ async function ModelView({ params }: Pick<PageProps<'/models/[...name]'>, 'param
           <Link href="/models" className="text-xs text-muted hover:text-fg">
             ← Models
           </Link>
-          <h1 className="text-xl font-semibold tracking-tight">{name}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {name}
+            <MoeBadge
+              experts={live?.experts ?? info.experts}
+              active={live?.expertsActive ?? info.expertsActive}
+              className="ml-2 align-middle font-normal"
+            />
+          </h1>
           <p className="font-mono text-xs text-muted">
             {[info.provider, info.family, info.parameterSize, info.quantization].filter(Boolean).join(' · ')} · {info.digests}{' '}
             {info.digests === 1 ? 'digest' : 'digests'} · capabilities: {(live?.capabilities ?? info.capabilities).join(', ')}

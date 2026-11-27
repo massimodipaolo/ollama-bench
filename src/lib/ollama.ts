@@ -18,6 +18,9 @@ export interface OllamaModelInfo {
   /** capability corrections applied by src/config/model-overrides.ts */
   capabilityNotes: string[];
   modifiedAt: string;
+  /** mixture-of-experts: total experts / experts active per token (null = dense, or unknown) */
+  experts: number | null;
+  expertsActive: number | null;
 }
 
 async function ollamaFetch<T>(pathname: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
@@ -42,10 +45,45 @@ interface TagsResponse {
   }[];
 }
 
+interface Arch {
+  experts: number | null;
+  expertsActive: number | null;
+}
+
+/** /api/show is per model and a digest's metadata never changes: cache by digest (survives HMR). */
+const archCache = (globalThis as unknown as { __benchArch?: Map<string, Arch> }).__benchArch ?? new Map<string, Arch>();
+(globalThis as unknown as { __benchArch?: Map<string, Arch> }).__benchArch = archCache;
+
+/**
+ * Mixture-of-experts metadata from the GGUF keys in /api/show model_info: "<arch>.expert_count" and
+ * "<arch>.expert_used_count" (e.g. gptoss.expert_count = 32, expert_used_count = 4). Dense models have neither.
+ */
+async function modelArch(name: string, digest: string): Promise<Arch> {
+  const hit = archCache.get(digest);
+  if (hit) return hit;
+  try {
+    const { model_info: info = {} } = await ollamaFetch<{ model_info?: Record<string, unknown> }>('/api/show', {
+      method: 'POST',
+      body: JSON.stringify({ model: name }),
+    });
+    const num = (suffix: string) => {
+      const v = Object.entries(info).find(([k]) => k.endsWith(suffix))?.[1];
+      return typeof v === 'number' && v > 1 ? v : null;
+    };
+    const experts = num('.expert_count');
+    const arch = { experts, expertsActive: experts ? num('.expert_used_count') : null };
+    archCache.set(digest, arch);
+    return arch;
+  } catch {
+    return { experts: null, expertsActive: null }; // not cached: retried on the next listing
+  }
+}
+
 export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
   const { models } = await ollamaFetch<TagsResponse>('/api/tags');
+  const arch = await Promise.all(models.map((m) => modelArch(m.name, m.digest)));
   return models
-    .map((m) => {
+    .map((m, i) => {
       const o = applyOverrides({ name: m.name, family: m.details.family, capabilities: m.capabilities ?? [] });
       return {
         name: m.name,
@@ -58,6 +96,7 @@ export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
         capabilities: o.capabilities as Capability[],
         capabilityNotes: o.notes,
         modifiedAt: m.modified_at,
+        ...arch[i],
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -76,7 +115,10 @@ export function upsertOllamaModel(m: OllamaModelInfo): number {
     .where(and(eq(schema.models.provider, 'ollama'), eq(schema.models.name, m.name), eq(schema.models.digest, m.digest)))
     .get();
   if (existing) {
-    db.update(schema.models).set({ lastSeen: Date.now(), capabilities: m.capabilities }).where(eq(schema.models.id, existing.id)).run();
+    db.update(schema.models)
+      .set({ lastSeen: Date.now(), capabilities: m.capabilities, experts: m.experts, expertsActive: m.expertsActive })
+      .where(eq(schema.models.id, existing.id))
+      .run();
     return existing.id;
   }
   return db
@@ -90,6 +132,8 @@ export function upsertOllamaModel(m: OllamaModelInfo): number {
       quantization: m.quantization,
       contextLength: m.contextLength,
       capabilities: m.capabilities,
+      experts: m.experts,
+      expertsActive: m.expertsActive,
     })
     .returning({ id: schema.models.id })
     .get().id;
@@ -147,6 +191,23 @@ export async function unload(model: string, embedding = false): Promise<void> {
   } catch {
     /* best effort */
   }
+}
+
+export interface LoadedModel {
+  name: string;
+  /** bytes of GPU memory (unified memory on the DGX Spark) */
+  sizeVram: number;
+  contextLength: number | null;
+  /** when Ollama unloads it on its own (keep_alive) */
+  expiresAt: string;
+}
+
+/** Models Ollama has in memory right now (/api/ps). */
+export async function loadedModels(): Promise<LoadedModel[]> {
+  const { models } = await ollamaFetch<{ models: { name: string; size_vram: number; context_length?: number; expires_at: string }[] }>(
+    '/api/ps',
+  );
+  return models.map((m) => ({ name: m.name, sizeVram: m.size_vram, contextLength: m.context_length ?? null, expiresAt: m.expires_at }));
 }
 
 export interface SyncResult {

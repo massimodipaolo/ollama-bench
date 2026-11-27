@@ -355,6 +355,8 @@ async function main() {
           models: [j.model.name],
           includeBaselines: j.includeBaselines,
           config: { subset, judges, think: a.think, extra: j.extra, ...(NUM_CTX ? { numCtx: NUM_CTX } : {}) },
+          // the plan is grouped by model: keep it loaded while its next session follows, free it when moving on
+          keepLoaded: plan[i + 1]?.model.name === j.model.name,
         }),
       });
       current = id;

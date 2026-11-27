@@ -9,6 +9,7 @@ import { inTier, parseTier, type Tier } from '@/lib/tiers';
 import { listOllamaModels } from '@/lib/ollama';
 import { RefreshModelsButton } from '@/components/refresh-models-button';
 import { CompareForm } from '@/components/compare-form';
+import { MoeBadge } from '@/components/moe-badge';
 
 export default function ModelsPage({ searchParams }: PageProps<'/models'>) {
   return (
@@ -40,8 +41,9 @@ async function ModelList({ searchParams }: { searchParams: PageProps<'/models'>[
   const all = modelIndex();
   const rows = all.filter((m) => inTier(m.parameterSize, tier));
   // which Ollama models are on the host right now (null = host unreachable: no badges)
+  // models on the host right now (null = host unreachable: no "not on host" badges); also the freshest MoE info
   const live = await listOllamaModels()
-    .then((ms) => new Set(ms.map((m) => m.name)))
+    .then((ms) => new Map(ms.map((m) => [m.name, m])))
     .catch(() => null);
   return (
     <>
@@ -73,6 +75,10 @@ async function ModelList({ searchParams }: { searchParams: PageProps<'/models'>[
                     {m.name}
                   </Link>
                   {m.provider !== 'ollama' && <span className="ml-2 rounded bg-accent/15 px-1.5 text-xs text-accent">{m.provider}</span>}
+                  <MoeBadge
+                    experts={live?.get(m.name)?.experts ?? m.experts}
+                    active={live?.get(m.name)?.expertsActive ?? m.expertsActive}
+                  />
                   {m.provider === 'ollama' && live && !live.has(m.name) && (
                     <span
                       className="ml-2 rounded bg-code px-1.5 text-xs text-muted"

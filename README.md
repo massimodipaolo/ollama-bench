@@ -94,9 +94,33 @@ the queued/running sessions of servers that stopped (silent for 90 s), and remov
 behind (labelled `ollama-bench.instance=<id>`). Sessions of a server that's still running are never touched, so
 several servers can share the database, e.g. the VS Code `dev` configuration on :3000 next to another one.
 
+**Dev server reloading in a loop** (an open page refreshes several times a second; the log shows endless
+`GET /…` plus `Compiled in 1ms`): the dev cache is stale, typically after a `pnpm build` in the same folder. Stop
+`pnpm dev`, delete `.next/dev` (the dev server's own cache; the production build is untouched), and start again.
+
+**Model memory on the Ollama host.** A model stays loaded only while something needs it:
+
+- When a session's GPU work ends, the runner unloads its model **unless a queued session uses it next**. It keeps it
+  warm for that session; capability batches queue all their sessions up front, so they benefit automatically.
+  Helper models (RAG's embedder) are released the same way.
+- `pnpm bench` sends sessions one at a time, grouped by model. Each session tells the server whether the next one uses
+  the same model (`keepLoaded`), so a model loads once for all its tests and is freed when the CLI moves on.
+- A session with two models unloads each one right after its run, so the second never shares the GPU with the first.
+- `keep_alive: 15m` stays as the safety net: if the app stops mid-run, Ollama frees the memory by itself.
+- `/run` lists what the host holds right now (memory, context, when it unloads), with an **Unload** button for
+  leftovers, e.g. from another app or a stopped server. Models a queued or running session needs can't be
+  unloaded (HTTP 409). API: `GET /api/ollama/loaded`, `POST /api/ollama/unload {model}`.
+
 **Run benchmarks from one server at a time.** The GPU lock that keeps sessions sequential lives inside each server
 process. Two servers running sessions at once both load models on the Ollama host, which skews timings and can
 exhaust its memory. The top of `/run` lists sessions from every server.
+
+## Mixture-of-experts models
+
+Models built from experts get a **MoE** tag on `/models` and on their own page. Hovering shows the details, e.g.
+"128 experts, 8 active per token". The counts come from Ollama's `/api/show` (`model_info`: `<arch>.expert_count`
+and `<arch>.expert_used_count`), are cached per digest, and are stored with the model (`models.experts`,
+`models.experts_active`).
 
 ## Comparing two models
 

@@ -15,6 +15,9 @@ export const models = sqliteTable(
     parameterSize: text('parameter_size'),
     quantization: text('quantization'),
     contextLength: integer('context_length'),
+    /** mixture-of-experts: total experts and experts active per token (from /api/show model_info; null = dense) */
+    experts: integer('experts'),
+    expertsActive: integer('experts_active'),
     capabilities: text('capabilities', { mode: 'json' }).$type<string[]>().notNull().default([]),
     firstSeen: integer('first_seen', { mode: 'number' }).notNull().default(now),
     lastSeen: integer('last_seen', { mode: 'number' }).notNull().default(now),

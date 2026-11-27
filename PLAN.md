@@ -137,6 +137,9 @@ run_scores    run_id, auto_score, judge_openai, judge_google, judge_anthropic, j
     - App servers register in `server_instances` and heartbeat every 20 s. Startup recovery only takes over sessions
       and containers of dead servers: a second dev server on :3000 had marked a live server's sessions as interrupted.
     - Confirmation runs (quick, qwen3.8:27b): Terminal-Bench 2/5 in 11 min (was 1/5 in 33 min); Polyglot v3 4/6.
+    - Model memory (2026-11-27): models are unloaded as soon as no queued session needs them (`runner/residency.ts`;
+      the CLI passes `keepLoaded` for its next same-model session; helper models via `TestDefinition.helperModels`).
+      `/run` shows the host's loaded models with Unload. MoE tag from `/api/show` expert counts.
 13. Next candidates: MCP-Atlas (no-key servers), IFEval/IFBench, RULER; a real TEDS for OmniDocBench tables.
 
 ## Local rerankers in Ollama (tested 2026-11-26, Ollama 0.40.18)

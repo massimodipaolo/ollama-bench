@@ -19,6 +19,8 @@ const body = z.object({
     })
     .default({}),
   includeBaselines: z.boolean().optional(),
+  /** the caller's next session uses the same model: keep it loaded afterwards */
+  keepLoaded: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {

@@ -82,6 +82,8 @@ export const rag: TestDefinition<QueryCase> = {
   },
   loadCases: (lang) => loadQueries(lang),
 
+  helperModels: (config) => [{ name: String(config.extra?.embedder ?? 'bge-m3:latest'), embedding: true }],
+
   async prepare(ctx) {
     const embedder = String(ctx.config.extra?.embedder ?? 'bge-m3:latest');
     const index = await buildIndex({ model: embedder, numCtx: EMBED_CTX, prefixes: 'recommended', useCache: true, signal: ctx.signal });

@@ -14,6 +14,7 @@ import { createLive, emit, getLive, withOllamaLock } from './events';
 import { GenerationError } from '@/lib/tests/generate';
 import { sdkVersions } from '@/lib/versions';
 import { serverInstance } from './instance';
+import { forgetSession, registerSession, releaseSession, type UsedModel } from './residency';
 
 export interface StartSessionInput {
   testId: string;
@@ -24,6 +25,8 @@ export interface StartSessionInput {
   includeBaselines?: boolean;
   /** capability batch this session belongs to */
   batchId?: string;
+  /** the caller's next session uses the same model: keep it loaded afterwards (see residency.ts) */
+  keepLoaded?: boolean;
 }
 
 const avg = (xs: (number | null | undefined)[]) => {
@@ -102,6 +105,12 @@ export async function startSession(input: StartSessionInput): Promise<string> {
   });
 
   createLive(id);
+  registerSession(
+    id,
+    picked.map((m) => m.name),
+    (test.helperModels?.(config) ?? []).map((h) => h.name),
+    !!input.keepLoaded,
+  );
   void executeSession(id).catch((e) => console.error('[runner] session failed', id, e));
   return id;
 }
@@ -134,55 +143,114 @@ async function executeSession(sessionId: string) {
   const setRun = (id: number, v: Partial<typeof schema.runs.$inferInsert>) =>
     db.update(schema.runs).set(v).where(eq(schema.runs.id, id)).run();
 
+  // Ollama models this session loaded, released at the end of its GPU work (see residency.ts)
+  const used: UsedModel[] = (test.helperModels?.(session.config) ?? []).slice();
+
   try {
     await withOllamaLock(async () => {
-      setSession({ status: 'running' });
-      emit(sessionId, { type: 'session', status: 'running' });
+      try {
+        setSession({ status: 'running' });
+        emit(sessionId, { type: 'session', status: 'running' });
 
-      // Models run sequentially, never in parallel, so timings are comparable.
-      for (const { run, model } of runs) {
-        if (signal.aborted) break;
-        setRun(run.id, { status: 'running', startedAt: Date.now() });
-        emit(sessionId, { type: 'run-status', runId: run.id, status: 'loading' });
-        const isOllama = model.provider === 'ollama';
-        const embeddingOnly = model.capabilities.includes('embedding') && !model.capabilities.includes('completion');
-        const baseCtx = {
-          provider: model.provider,
-          modelName: model.name,
-          capabilities: model.capabilities,
-          lang,
-          config: session.config,
-          signal,
-        };
-        let loadMs: number | undefined;
-        let shared: unknown;
-        try {
-          if (isOllama) {
-            loadMs = await warmUp(model.name, embeddingOnly ? Math.min(session.config.numCtx, 2048) : session.config.numCtx, embeddingOnly);
-            setRun(run.id, { loadMs });
-          }
-          if (test.prepare) {
-            const p = await test.prepare({ ...baseCtx, onDelta: () => {} });
-            shared = p.shared;
-            if (p.stats) setRun(run.id, { stats: p.stats });
-          }
-        } catch (e) {
-          const error = `${isOllama && loadMs === undefined ? 'Warm-up' : 'Prepare'} failed: ${(e as Error).message}`;
-          setRun(run.id, { status: 'error', error, finishedAt: Date.now() });
-          emit(sessionId, { type: 'run-status', runId: run.id, status: 'error', error });
-          continue;
-        }
-        emit(sessionId, { type: 'run-status', runId: run.id, status: 'running', loadMs });
-
-        for (const c of cases) {
+        // Models run sequentially, never in parallel, so timings are comparable.
+        for (const { run, model } of runs) {
           if (signal.aborted) break;
-          emit(sessionId, { type: 'case-start', runId: run.id, caseId: c.id, title: c.title });
-          const missing = (c.requires ?? []).filter((cap) => !model.capabilities.includes(cap));
-          if (missing.length) {
-            const error = `skipped: model lacks ${missing.join(', ')}`;
+          setRun(run.id, { status: 'running', startedAt: Date.now() });
+          emit(sessionId, { type: 'run-status', runId: run.id, status: 'loading' });
+          const isOllama = model.provider === 'ollama';
+          const embeddingOnly = model.capabilities.includes('embedding') && !model.capabilities.includes('completion');
+          const baseCtx = {
+            provider: model.provider,
+            modelName: model.name,
+            capabilities: model.capabilities,
+            lang,
+            config: session.config,
+            signal,
+          };
+          let loadMs: number | undefined;
+          let shared: unknown;
+          try {
+            if (isOllama) {
+              loadMs = await warmUp(
+                model.name,
+                embeddingOnly ? Math.min(session.config.numCtx, 2048) : session.config.numCtx,
+                embeddingOnly,
+              );
+              setRun(run.id, { loadMs });
+            }
+            if (test.prepare) {
+              const p = await test.prepare({ ...baseCtx, onDelta: () => {} });
+              shared = p.shared;
+              if (p.stats) setRun(run.id, { stats: p.stats });
+            }
+          } catch (e) {
+            const error = `${isOllama && loadMs === undefined ? 'Warm-up' : 'Prepare'} failed: ${(e as Error).message}`;
+            setRun(run.id, { status: 'error', error, finishedAt: Date.now() });
+            emit(sessionId, { type: 'run-status', runId: run.id, status: 'error', error });
+            continue;
+          }
+          emit(sessionId, { type: 'run-status', runId: run.id, status: 'running', loadMs });
+
+          for (const c of cases) {
+            if (signal.aborted) break;
+            emit(sessionId, { type: 'case-start', runId: run.id, caseId: c.id, title: c.title });
+            const missing = (c.requires ?? []).filter((cap) => !model.capabilities.includes(cap));
+            if (missing.length) {
+              const error = `skipped: model lacks ${missing.join(', ')}`;
+              const cr = db
+                .insert(schema.caseResults)
+                .values({ runId: run.id, caseId: c.id, error, autoScore: null, checks: [] })
+                .returning({ id: schema.caseResults.id })
+                .get();
+              emit(sessionId, {
+                type: 'case-end',
+                runId: run.id,
+                caseId: c.id,
+                caseResultId: cr.id,
+                output: '',
+                metrics: {},
+                checks: [],
+                autoScore: null,
+                error,
+              });
+              continue;
+            }
+            let out: CaseOutput | undefined;
+            let error: string | undefined;
+            let partial: string | undefined;
+            try {
+              out = await test.run(
+                { ...baseCtx, shared, onDelta: (text) => emit(sessionId, { type: 'delta', runId: run.id, caseId: c.id, text }) },
+                c,
+              );
+            } catch (e) {
+              error = (e as Error).message ?? String(e);
+              if (e instanceof GenerationError && e.partialOutput) partial = e.partialOutput;
+            }
+            // thinking models can spend the whole output budget on hidden reasoning (some ignore think=false)
+            if (out && !out.output.trim() && out.reasoning?.trim()) {
+              error = `empty answer: the whole output budget went to reasoning (${out.reasoning.length} chars${session.config.think ? '' : ', although thinking was off'})`;
+            }
+            const checks = out ? test.check(c, out, lang) : [];
+            const auto = out ? autoScore(checks) : 0;
             const cr = db
               .insert(schema.caseResults)
-              .values({ runId: run.id, caseId: c.id, error, autoScore: null, checks: [] })
+              .values({
+                runId: run.id,
+                caseId: c.id,
+                output: out?.output ?? partial,
+                reasoning: out?.reasoning,
+                data: out?.data,
+                latencyMs: out?.latencyMs,
+                ttftMs: out?.ttftMs,
+                tokensIn: out?.tokensIn,
+                tokensOut: out?.tokensOut,
+                reasoningTokens: out?.reasoningTokens,
+                tokPerSec: out?.tokPerSec,
+                autoScore: auto,
+                checks,
+                error,
+              })
               .returning({ id: schema.caseResults.id })
               .get();
             emit(sessionId, {
@@ -190,105 +258,65 @@ async function executeSession(sessionId: string) {
               runId: run.id,
               caseId: c.id,
               caseResultId: cr.id,
-              output: '',
-              metrics: {},
-              checks: [],
-              autoScore: null,
-              error,
-            });
-            continue;
-          }
-          let out: CaseOutput | undefined;
-          let error: string | undefined;
-          let partial: string | undefined;
-          try {
-            out = await test.run(
-              { ...baseCtx, shared, onDelta: (text) => emit(sessionId, { type: 'delta', runId: run.id, caseId: c.id, text }) },
-              c,
-            );
-          } catch (e) {
-            error = (e as Error).message ?? String(e);
-            if (e instanceof GenerationError && e.partialOutput) partial = e.partialOutput;
-          }
-          // thinking models can spend the whole output budget on hidden reasoning (some ignore think=false)
-          if (out && !out.output.trim() && out.reasoning?.trim()) {
-            error = `empty answer: the whole output budget went to reasoning (${out.reasoning.length} chars${session.config.think ? '' : ', although thinking was off'})`;
-          }
-          const checks = out ? test.check(c, out, lang) : [];
-          const auto = out ? autoScore(checks) : 0;
-          const cr = db
-            .insert(schema.caseResults)
-            .values({
-              runId: run.id,
-              caseId: c.id,
-              output: out?.output ?? partial,
+              output: out?.output ?? partial ?? '',
               reasoning: out?.reasoning,
               data: out?.data,
-              latencyMs: out?.latencyMs,
-              ttftMs: out?.ttftMs,
-              tokensIn: out?.tokensIn,
-              tokensOut: out?.tokensOut,
-              reasoningTokens: out?.reasoningTokens,
-              tokPerSec: out?.tokPerSec,
-              autoScore: auto,
+              metrics: {
+                latencyMs: out?.latencyMs,
+                ttftMs: out?.ttftMs,
+                tokensIn: out?.tokensIn,
+                tokensOut: out?.tokensOut,
+                reasoningTokens: out?.reasoningTokens,
+                tokPerSec: out?.tokPerSec,
+              },
               checks,
+              autoScore: auto,
               error,
-            })
-            .returning({ id: schema.caseResults.id })
-            .get();
-          emit(sessionId, {
-            type: 'case-end',
-            runId: run.id,
-            caseId: c.id,
-            caseResultId: cr.id,
-            output: out?.output ?? partial ?? '',
-            reasoning: out?.reasoning,
-            data: out?.data,
-            metrics: {
-              latencyMs: out?.latencyMs,
-              ttftMs: out?.ttftMs,
-              tokensIn: out?.tokensIn,
-              tokensOut: out?.tokensOut,
-              reasoningTokens: out?.reasoningTokens,
-              tokPerSec: out?.tokPerSec,
-            },
-            checks,
-            autoScore: auto,
-            error,
-          });
+            });
 
-          // Judges run on remote APIs: fire now, in parallel with the next Ollama generation.
-          if (out && out.output.trim() && session.config.judges.length) {
-            judging.push(
-              judgeCaseResult({
-                caseResultId: cr.id,
-                rubric: test.rubric,
-                material: test.judgeMaterial(c, out, lang),
-                lang,
-                responseLanguage: test.responseLanguage ?? 'case',
-                enabled: session.config.judges,
-              }).then((outcomes) => {
-                for (const o of outcomes)
-                  emit(sessionId, {
-                    type: 'judgment',
-                    runId: run.id,
-                    caseId: c.id,
-                    caseResultId: cr.id,
-                    judge: o.judge,
-                    score: o.score,
-                    rationale: o.rationale,
-                    cached: o.cached,
-                    withoutAttachments: o.withoutAttachments,
-                    error: o.error,
-                  });
-              }),
-            );
+            // Judges run on remote APIs: fire now, in parallel with the next Ollama generation.
+            if (out && out.output.trim() && session.config.judges.length) {
+              judging.push(
+                judgeCaseResult({
+                  caseResultId: cr.id,
+                  rubric: test.rubric,
+                  material: test.judgeMaterial(c, out, lang),
+                  lang,
+                  responseLanguage: test.responseLanguage ?? 'case',
+                  enabled: session.config.judges,
+                }).then((outcomes) => {
+                  for (const o of outcomes)
+                    emit(sessionId, {
+                      type: 'judgment',
+                      runId: run.id,
+                      caseId: c.id,
+                      caseResultId: cr.id,
+                      judge: o.judge,
+                      score: o.score,
+                      rationale: o.rationale,
+                      cached: o.cached,
+                      withoutAttachments: o.withoutAttachments,
+                      error: o.error,
+                    });
+                }),
+              );
+            }
           }
+          if (test.cleanup) await test.cleanup(shared).catch((e) => console.error('[runner] cleanup failed', e));
+          setRun(run.id, { status: signal.aborted ? 'error' : 'done', finishedAt: Date.now(), error: signal.aborted ? 'cancelled' : null });
+          emit(sessionId, { type: 'run-status', runId: run.id, status: signal.aborted ? 'error' : 'done' });
+          if (!isOllama) continue;
+          // two models: unload each after its run, so the second never shares the GPU with the first
+          if (runs.filter((r) => r.model.provider === 'ollama').length > 1) await unload(model.name, embeddingOnly);
+          else used.push({ name: model.name, embedding: embeddingOnly });
         }
-        if (test.cleanup) await test.cleanup(shared).catch((e) => console.error('[runner] cleanup failed', e));
-        setRun(run.id, { status: signal.aborted ? 'error' : 'done', finishedAt: Date.now(), error: signal.aborted ? 'cancelled' : null });
-        emit(sessionId, { type: 'run-status', runId: run.id, status: signal.aborted ? 'error' : 'done' });
-        if (isOllama && runs.length > 1) await unload(model.name, embeddingOnly);
+      } finally {
+        // still inside the GPU lock: free what no queued session needs before the next one loads its model
+        const released = await releaseSession(sessionId, used).catch((e) => {
+          console.error('[runner] release failed', e);
+          return [] as string[];
+        });
+        if (released.length) console.log(`[runner] unloaded ${released.join(', ')} (nothing queued needs them)`);
       }
     });
 
@@ -309,6 +337,8 @@ async function executeSession(sessionId: string) {
     const error = (e as Error).message;
     setSession({ status: 'error', error, finishedAt: Date.now() });
     emit(sessionId, { type: 'session-end', status: 'error', error });
+  } finally {
+    forgetSession(sessionId); // no-op when released above
   }
 }
 
