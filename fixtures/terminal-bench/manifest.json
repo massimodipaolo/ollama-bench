@@ -1,0 +1,17 @@
+{
+  "repo": "harbor-framework/terminal-bench-2-1",
+  "commit": "12b7565679ce5006230b820666353673a133db93",
+  "version": "2.1",
+  "license": "Apache-2.0",
+  "source": "https://github.com/harbor-framework/terminal-bench-2-1",
+  "harness": "Harbor task format: environment image from task.toml, tests/ copied to /tests, bash /tests/test.sh writes /logs/verifier/reward.txt",
+  "selection": "quick: the 4 easy tasks + the medium task with the shortest agent timeout; full: all 89",
+  "quick": [
+    "cobol-modernization",
+    "fix-git",
+    "overfull-hbox",
+    "prove-plus-comm",
+    "modernize-scientific-stack"
+  ],
+  "count": 89
+}

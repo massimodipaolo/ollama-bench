@@ -74,6 +74,18 @@ export const docToMarkdown: TestDefinition<DocCase> = {
 
   check: (c, out) => markdownChecks(out.output, reference(c), c.forbid),
 
+  // the real prompt: system rules, instruction and the file exactly as the model got it (extracted text or the image)
+  async promptPreview(c, lang) {
+    const src = sourcePart(c);
+    const part = await formatFilePartForOllama(src);
+    return {
+      task: `${c.title}: convert ${c.file} to GitHub-flavored Markdown`,
+      input: `System: ${conversionPrompt(lang.code)}\n\nUser: ${c.instruction}\n\n${part.type === 'text' ? part.text : `[image: ${c.file}, sent natively]`}`,
+      reference: reference(c),
+      attachments: [src],
+    };
+  },
+
   judgeMaterial: (c, out) => {
     const src = sourcePart(c);
     // judges read images and PDFs natively; other formats are covered by the reference

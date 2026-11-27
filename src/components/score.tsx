@@ -24,3 +24,9 @@ export function fmtMs(ms: number | null | undefined) {
 export function fmtNum(n: number | null | undefined, digits = 1) {
   return n == null ? '–' : n.toFixed(digits);
 }
+
+/** Background for a 0-10 score cell: one hue (accent), light to dark with the score; the number stays in text ink. */
+export const heat = (score: number | null | undefined) =>
+  score == null
+    ? undefined
+    : { backgroundColor: `color-mix(in oklab, var(--accent) ${Math.round(Math.max(0, Math.min(10, score)) * 3)}%, transparent)` };

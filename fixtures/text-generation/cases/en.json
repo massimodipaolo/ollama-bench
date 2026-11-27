@@ -98,5 +98,40 @@
       { "type": "notRegex", "pattern": "^\\s*[-*•]\\s+", "flags": "m", "label": "no bullet points" },
       { "type": "language" }
     ]
+  },
+  {
+    "id": "mermaid-flowchart",
+    "title": "Mermaid flowchart of a procedure",
+    "quick": true,
+    "prompt": "Draw the procedure below as a Mermaid flowchart. Requirements: start with \"flowchart TD\"; put the preparation steps (waiting and gathering the three items) inside a subgraph titled \"Prepare\" and the steps in the online tool inside a subgraph titled \"Check status\"; draw every decision as a diamond whose outgoing edges are labelled (for example yes / no); show the loop back when the entered data does not match; use between 12 and 25 nodes; put any label that contains parentheses or quotes inside double quotes. Output only one ```mermaid code block, with no explanation.",
+    "context": "Checking the status of a federal tax refund\n\nWhen to start: if the return was filed electronically, wait 24 hours before checking; if it was mailed on paper, wait 4 weeks.\nWhat to gather: the Social Security number (or ITIN), the filing status, and the exact whole-dollar refund amount shown on the return.\nHow to check: open the online tool and enter the three items. If they do not match the return on file, the tool shows an error: verify the items and enter them again. If they match, the tool shows one of three statuses: Return Received, Refund Approved or Refund Sent.\n- Return Received: the return is being processed; check again the next day (the tool is updated once a day, usually overnight).\n- Refund Approved: the tool shows the date the refund will be sent.\n- Refund Sent: with direct deposit, allow up to 5 days for the bank to post the money; with a paper check, allow several weeks for delivery by mail.\nWhen to call: only if the tool tells you to, or if more than 21 days have passed since e-filing (6 weeks since mailing a paper return) without a Refund Approved status.",
+    "reference": "One valid \"flowchart TD\" in a single ```mermaid block, nothing else. Subgraph \"Prepare\": a decision on how the return was filed (e-filed -> wait 24 hours; paper -> wait 4 weeks) and gathering SSN/ITIN, filing status and the exact refund amount. Subgraph \"Check status\": enter the three items -> decision \"data matches?\" whose \"no\" edge loops back to re-entering the data; a status decision with three branches Return Received / Refund Approved / Refund Sent; Return Received -> check again the next day; Refund Approved -> date the refund will be sent; Refund Sent -> decision direct deposit (up to 5 days) vs paper check (several weeks). The call rule (only if the tool says so, or more than 21 days after e-filing / 6 weeks after mailing without Refund Approved) appears as a decision or a clearly labelled node. Every decision edge is labelled. No invented steps, numbers or statuses.",
+    "checks": [
+      {
+        "type": "mermaid",
+        "diagram": "flowchart",
+        "onlyBlock": true
+      },
+      {
+        "type": "mermaidGraph",
+        "minNodes": 12,
+        "maxNodes": 25,
+        "minDecisions": 4,
+        "minSubgraphs": 2,
+        "minLabelledEdges": 6,
+        "cycle": true,
+        "labels": [
+          "Return Received",
+          "Refund Approved",
+          "Refund Sent",
+          "24 hours",
+          "4 weeks"
+        ],
+        "subgraphTitles": [
+          "Prepare",
+          "Check status"
+        ]
+      }
+    ]
   }
 ]

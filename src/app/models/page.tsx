@@ -8,6 +8,7 @@ import { TierFilter } from '@/components/tier-filter';
 import { inTier, parseTier, type Tier } from '@/lib/tiers';
 import { listOllamaModels } from '@/lib/ollama';
 import { RefreshModelsButton } from '@/components/refresh-models-button';
+import { CompareForm } from '@/components/compare-form';
 
 export default function ModelsPage({ searchParams }: PageProps<'/models'>) {
   return (
@@ -32,15 +33,24 @@ export default function ModelsPage({ searchParams }: PageProps<'/models'>) {
 }
 
 async function ModelList({ searchParams }: { searchParams: PageProps<'/models'>['searchParams'] }) {
-  const tier: Tier = parseTier((await searchParams).tier);
+  const sp = await searchParams;
+  const tier: Tier = parseTier(sp.tier);
+  const compareA = typeof sp.compare === 'string' ? sp.compare : '';
   await connection();
-  const rows = modelIndex().filter((m) => inTier(m.parameterSize, tier));
+  const all = modelIndex();
+  const rows = all.filter((m) => inTier(m.parameterSize, tier));
   // which Ollama models are on the host right now (null = host unreachable: no badges)
   const live = await listOllamaModels()
     .then((ms) => new Set(ms.map((m) => m.name)))
     .catch(() => null);
   return (
     <>
+      <section id="compare" className="rounded-lg border border-line bg-panel px-4 py-3">
+        <CompareForm
+          models={all.map((m) => ({ name: m.name, capabilities: m.capabilities, parameterSize: m.parameterSize }))}
+          initialA={compareA}
+        />
+      </section>
       <TierFilter basePath="/models" current={tier} />
       <section className="overflow-x-auto rounded-lg border border-line bg-panel">
         <table className="w-full text-left">

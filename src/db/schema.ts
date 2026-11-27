@@ -37,6 +37,32 @@ export interface SessionConfig {
   extra?: Record<string, unknown>;
 }
 
+/**
+ * A capability run: one session per selected test, all with the same 1–2 models, language and config. Sessions run
+ * one after another (GPU lock, first come first served); the batch's status is derived from its sessions.
+ */
+/**
+ * App server processes that run sessions. Several can share the DB (e.g. a dev server on :3000 and another on
+ * :3311): each heartbeats while alive, and a starting server only recovers sessions (and Docker containers) of
+ * servers whose heartbeat stopped.
+ */
+export const serverInstances = sqliteTable('server_instances', {
+  id: text('id').primaryKey(),
+  pid: integer('pid').notNull(),
+  startedAt: integer('started_at', { mode: 'number' }).notNull().default(now),
+  heartbeatAt: integer('heartbeat_at', { mode: 'number' }).notNull().default(now),
+});
+
+export const batches = sqliteTable('batches', {
+  id: text('id').primaryKey(),
+  capability: text('capability').notNull(),
+  lang: text('lang').notNull(),
+  models: text('models', { mode: 'json' }).$type<string[]>().notNull(),
+  testIds: text('test_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  config: text('config', { mode: 'json' }).$type<Partial<SessionConfig>>().notNull(),
+  createdAt: integer('created_at', { mode: 'number' }).notNull().default(now),
+});
+
 /** One "run" click: a test, a language, 1–2 models (+ baselines), shared config. */
 export const sessions = sqliteTable(
   'sessions',
@@ -52,8 +78,12 @@ export const sessions = sqliteTable(
     error: text('error'),
     createdAt: integer('created_at', { mode: 'number' }).notNull().default(now),
     finishedAt: integer('finished_at', { mode: 'number' }),
+    /** set when the session was started as part of a capability batch */
+    batchId: text('batch_id').references(() => batches.id, { onDelete: 'set null' }),
+    /** server instance executing it (server_instances.id) */
+    instanceId: text('instance_id'),
   },
-  (t) => [index('sessions_test').on(t.testId, t.createdAt)],
+  (t) => [index('sessions_test').on(t.testId, t.createdAt), index('sessions_batch').on(t.batchId)],
 );
 
 export type JudgeScores = Record<string, number | null>;
@@ -161,6 +191,7 @@ export const judgments = sqliteTable(
 
 export type Model = typeof models.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
+export type Batch = typeof batches.$inferSelect;
 export type Run = typeof runs.$inferSelect;
 export type CaseResult = typeof caseResults.$inferSelect;
 export type Judgment = typeof judgments.$inferSelect;

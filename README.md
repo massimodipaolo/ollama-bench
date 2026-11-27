@@ -52,6 +52,149 @@ or the value set in the run form / `pnpm bench --num-ctx`. It therefore never de
 - A larger context costs VRAM (KV cache) and, for some models, speed. For example, granite4.2:3b uses about 5 GB at 8k
   and 24 GB at 64k. It changes scores only when inputs are actually long (documents, RAG, many tool turns).
 
+## By test or by capability
+
+The dashboard and the run form both have two views.
+
+- **By test:** one leaderboard per test, or one test per run (as before).
+- **By capability:** tests grouped by what they measure (`src/config/capabilities.ts`; a test can be in several).
+
+| Capability | Tests |
+|---|---|
+| Text | text-generation, structured-output, doc-to-markdown, rag |
+| Vision | image-recognition, omnidocbench, mmmu-pro |
+| Tools | tool-use, bfcl, mcp, web-search |
+| Retrieval | embeddings, reranking, rag |
+
+**Capability leaderboard** (`/?view=capability&cap=vision&lang=en`):
+
+- A model's capability score is the mean of its scores on the capability's tests. Each test score is the one its
+  leaderboard shows (latest judged run, otherwise the automatic score), for the default test options and default
+  `num_ctx`, in the chosen language.
+- Only results from each test's **current suite version** count. Older ones are shown struck out.
+- A model is **ranked** only with a current result on every test it can take, by its Ollama capabilities. An embedding
+  model can't run RAG, and a chat model can't run the embeddings test. Tests that nobody has run yet (e.g. web search
+  without credits) are not required. Partial rows are shown in brackets. Remote baselines (Cohere) are shown for
+  reference and never ranked.
+- **Overview** shows a model × capability matrix. Each score cell links to its session.
+
+**Capability runs** (`/run`, Capability tab): pick a capability, uncheck any tests you don't want, then pick 1–2
+models. The model list only shows models that can take every checked test. This starts a **batch**: one session per
+test, each with the selected models side by side. The sessions run one after another (the GPU lock is first come,
+first served). Test options stay at their defaults, so the results count toward the capability score.
+`/batches/[id]` shows a test × model grid that updates while the batch runs, with a link to each session and a
+"Cancel batch" button.
+
+The top of `/run` shows the session running now (test, models, cases done, and whether it is still generating or
+already judging) and any queued behind it. A run started then waits its turn (`/api/active` returns the same list).
+
+A session only runs inside the server process that started it. Each server records itself in the database and
+sends a heartbeat every 20 s, and every session stores its owner. When a server starts, it marks as **interrupted**
+the queued/running sessions of servers that stopped (silent for 90 s), and removes the Docker containers they left
+behind (labelled `ollama-bench.instance=<id>`). Sessions of a server that's still running are never touched, so
+several servers can share the database, e.g. the VS Code `dev` configuration on :3000 next to another one.
+
+**Run benchmarks from one server at a time.** The GPU lock that keeps sessions sequential lives inside each server
+process. Two servers running sessions at once both load models on the Ollama host, which skews timings and can
+exhaust its memory. The top of `/run` lists sessions from every server.
+
+## Comparing two models
+
+On `/models`, **Compare** takes a first model, then a second one from the models that share at least one Ollama
+capability with it. A model's page has a "Compare with…" link that preselects it. `/models/compare?a=…&b=…&lang=…`
+shows:
+
+- **Two polar charts:** by capability (Text, Vision, Tools, Coding, Retrieval) and by test. They use the same scores
+  as the dashboard (latest current-version results, default options, judge average or automatic score). Only axes
+  where both models have a score are drawn, since a missing value would read as 0. With fewer than 3 axes the same
+  values become grouped bars.
+- **A table** with both scores and the difference (A − B) per capability and per test. Partial capability scores are
+  in brackets; results from older test versions are struck through and not compared.
+- **History by test:** both models' runs over time, one chart per test and variant, in the chosen language.
+
+⇄ Swap exchanges A and B.
+
+## Session page
+
+Each case card has a **Prompt** button. It opens an overlay with what the case gave the model: the task, the input
+(system prompt, tools, user message, retrieved passages), any attached files, and, collapsed, the reference only the
+judges see. It is loaded on demand from `/api/sessions/[id]/prompt?case=…`. By default it is the test's judge material
+without the response. Tests whose judge material is thinner than the real prompt define `promptPreview` (BFCL: the
+messages and function definitions; MMMU-Pro: the message built for the session's options).
+Attached files are links (`/api/sessions/[id]/prompt/file?case=…&i=n`): images, PDFs and plain text open in the
+browser; other types (DOCX, XLSX) download. Doc-to-markdown shows the real prompt: the system rules, the instruction and
+the extracted text exactly as sent, with the original file linked.
+
+**Raw / Preview:** outputs can be shown as returned (Raw) or rendered as Markdown (Preview). There is one switch for
+the whole page and one per case, and it applies to every model column of the case so they stay comparable. The
+preview renders GFM (tables, task lists), LaTeX math with KaTeX (`$…$`, `$$…$$`, and the `\(…\)` / `\[…\]` forms
+models often use) and ` ```mermaid ` diagrams. Dollar amounts such as `$5` stay text. Model output is untrusted:
+raw HTML is ignored, images are shown as links rather than loaded, KaTeX runs with `trust: false`, and Mermaid runs in
+strict mode. Scores always come from the raw text.
+
+## Coding tests (Polyglot, Terminal-Bench)
+
+Both need **Docker** on the machine that runs the app (here: Docker Desktop, x86_64). Models stay on the Ollama host,
+and code only ever runs in containers.
+
+**Polyglot** (`polyglot`, Coding capability): [Aider's polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark),
+225 hard Exercism exercises in C++, Go, Java, JavaScript, Python and Rust (quick: one per language).
+
+```bash
+pnpm datasets:fetch polyglot     # repo at the pinned commit + builds the sandbox image (~5 GB, a few minutes)
+pnpm polyglot:verify             # optional: every reference solution must pass (225/225, ~11 min)
+```
+
+- **Protocol (as Aider's harness):** the prompt is the exercise instructions plus Aider's addendum. The model sees and
+  edits only the solution files. The unit tests stay hidden, run with Aider's per-language commands and a 3-minute
+  timeout. On failure, the model gets the test output and one more try. **Score = pass rate after 2 tries**
+  (`pass_rate_2`); the session shows each try with its test output.
+- **Difference from Aider:** answers use a whole-file format (the model returns each changed file in full), not Aider's
+  diff formats. The parser accepts the path on the line above the code block or as the block's first line (some
+  models do the latter). Test output for the retry is capped at 12k characters (Aider passes it uncapped).
+  JUnit/Gradle/JDK stack frames are dropped first, so failing tests and their messages survive the cap.
+- **Sandbox:** image `ollama-bench-polyglot:<hash>` (`docker/polyglot/Dockerfile`). Tests run with **no network**,
+  6 GB / 4 CPUs / 1,024 processes, no host mounts. Gradle, Cargo and npm dependencies are baked in at build time.
+- **Fixes found by `polyglot:verify`:** Jest pinned to 29.7 (Aider installs it unpinned, and Jest 30 removed
+  `toThrowError`, failing correct JavaScript answers). C++ exercises must sit in a folder with the exercise's own name.
+  Rust reference solutions with extra crates use `.meta/Cargo-example.toml`; models still get the plain `Cargo.toml`.
+
+**Terminal-Bench 2.1** (`terminal-bench`, CLI only): [89 agentic tasks](https://github.com/harbor-framework/terminal-bench-2-1)
+(software engineering, debugging, security, data, sysadmin…) in each task's own container. Quick: the 4 easy tasks plus
+the medium task with the shortest time limit.
+
+```bash
+pnpm datasets:fetch terminal-bench [--pull]       # tasks at the pinned commit (+ pre-pull the quick images)
+pnpm tb:verify                                    # optional: reference solve.sh + verifier must give reward 1
+pnpm bench --tests terminal-bench --models qwen3.8:27b --judges none
+```
+
+- **Agent:** our AI SDK loop with one `bash` tool that runs inside the task container (up to 80 steps, within the task's
+  own time limit). Command output is clipped to its start and end.
+- **Verifier (Harbor's protocol):** `tests/` copied to `/tests`, then `bash /tests/test.sh`. The reward comes from
+  `/logs/verifier/reward.txt`, and the verifier also runs after an agent timeout. **Score = share of tasks with reward 1.**
+- **Hours per model** (task time limits sum to 42 hours for the full set), so it's started only from the CLI. A plain
+  `pnpm bench` skips it, and the run form shows it as "CLI only". Results and transcripts appear in the app like any
+  session. Images are pulled on first use (tens of GB for all 89).
+- **Not comparable 1:1 with the [leaderboard](https://www.tbench.ai/leaderboard/terminal-bench/2.1)**, which uses the
+  Terminus 2 agent (tmux) and 5 trials per task. Tasks have internet access, as upstream.
+
+## Mermaid diagrams
+
+Text generation includes `mermaid-flowchart` (en + it): turn a refund-status procedure into a medium-size Mermaid
+flowchart. It needs two named subgraphs, labelled decision diamonds, a retry loop and 12–25 nodes, returned as a
+single code block. Answers are checked with **the real Mermaid parser**, server-side (`src/lib/mermaid-check.ts`):
+
+- `{ "type": "mermaid", "diagram": "flowchart", "onlyBlock": true }`: exactly one ```` ```mermaid ```` block that
+  parses, of that diagram type, with no other text. The parse error is shown in the check detail.
+- `{ "type": "mermaidGraph", ... }`: structure of the parsed flowchart: `minNodes`/`maxNodes`, `minDecisions`
+  (diamonds), `minSubgraphs`, `minLabelledEdges`, `cycle`, `labels` (found in node or edge labels), `subgraphTitles`.
+  Partial credit is the share of requirements met.
+
+Both check types can be used in any text-generation case. The judges assess fidelity to the described process,
+which the checks can't (for example, whether the right steps sit inside each subgraph). Use **Preview** on the
+session page to see the rendered diagram.
+
 ## Files sent to models
 
 Doc → Markdown and image tests build standard AI SDK file parts (bytes + media type). `src/lib/files/file-part.ts`

@@ -99,6 +99,8 @@ export interface TestDefinition<C extends BaseCase = BaseCase> {
   languages?: () => string[];
   /** false: deterministic benchmark metric only, judges are not called (default true) */
   judged?: boolean;
+  /** hours-long benchmark: started from the CLI (pnpm bench), not offered in the run form */
+  cliOnly?: boolean;
   rubric: Rubric;
   /** default num_ctx for this test */
   numCtx?: number;
@@ -116,4 +118,14 @@ export interface TestDefinition<C extends BaseCase = BaseCase> {
   run(ctx: RunContext, c: C): Promise<CaseOutput>;
   check(c: C, out: CaseOutput, lang: LanguageConfig): CheckResult[];
   judgeMaterial(c: C, out: CaseOutput, lang: LanguageConfig): JudgeMaterial;
+  /**
+   * What the model receives for a case (the session page's "Prompt" overlay). Default: the judge material without the
+   * response, which already describes the input for judged tests. Define it when that material is thinner than the
+   * real prompt (unjudged benchmarks) or depends on the session's options.
+   */
+  promptPreview?(
+    c: C,
+    lang: LanguageConfig,
+    extra: Record<string, unknown>,
+  ): Omit<JudgeMaterial, 'response'> | Promise<Omit<JudgeMaterial, 'response'>>;
 }

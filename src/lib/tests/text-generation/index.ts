@@ -1,8 +1,9 @@
 import 'server-only';
 import type { TestDefinition, BaseCase } from '../types';
 import { readCases } from '../fixtures';
-import { runCheck, type CheckSpec } from '../checks';
+import { needsMermaid, runCheck, type CheckSpec } from '../checks';
 import { streamWithMetrics } from '../generate';
+import { analyzeMermaid, type MermaidAnalysis } from '@/lib/mermaid-check';
 
 interface TextGenCase extends BaseCase {
   prompt: string;
@@ -17,8 +18,8 @@ const buildPrompt = (c: TextGenCase) => (c.context ? `${c.prompt}\n\n---\n${c.co
 export const textGeneration: TestDefinition<TextGenCase> = {
   id: 'text-generation',
   name: 'Text generation',
-  description: 'Summaries, reasoning, plain-language rewrite, constrained formatting, email, translation, extraction.',
-  version: '1',
+  description: 'Summaries, reasoning, plain-language rewrite, constrained formatting, email, translation, extraction, a Mermaid flowchart.',
+  version: '2',
   requires: ['completion'],
   numCtx: 8192,
   rubric: {
@@ -33,7 +34,14 @@ export const textGeneration: TestDefinition<TextGenCase> = {
     ],
   },
   loadCases: (lang) => readCases<TextGenCase>('text-generation', lang),
-  run: (ctx, c) => streamWithMetrics(ctx, { system: c.system, prompt: buildPrompt(c), maxOutputTokens: 2048 }),
-  check: (c, out, lang) => c.checks.map((s) => runCheck(s, out.output, lang)),
+  async run(ctx, c) {
+    const out = await streamWithMetrics(ctx, { system: c.system, prompt: buildPrompt(c), maxOutputTokens: 2048 });
+    // diagram cases: parse with the real Mermaid parser now (checks are synchronous)
+    return needsMermaid(c.checks) ? { ...out, data: { mermaid: await analyzeMermaid(out.output) } } : out;
+  },
+  check: (c, out, lang) => {
+    const mermaid = (out.data as { mermaid?: MermaidAnalysis } | undefined)?.mermaid;
+    return c.checks.map((s) => runCheck(s, out.output, lang, { mermaid }));
+  },
   judgeMaterial: (c, out) => ({ task: c.title, input: buildPrompt(c), reference: c.reference, response: out.output }),
 };

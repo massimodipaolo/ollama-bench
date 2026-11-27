@@ -8,6 +8,8 @@ import { mcp } from './mcp';
 import { omnidocbench } from './omnidocbench';
 import { bfcl } from './bfcl';
 import { mmmuPro } from './mmmu-pro';
+import { polyglot } from './polyglot';
+import { terminalBench } from './terminal-bench';
 import { textGeneration } from './text-generation';
 import { structuredOutput } from './structured-output';
 import { toolUse } from './tool-use';
@@ -31,6 +33,8 @@ export const TESTS: TestDefinition<any>[] = [
   omnidocbench,
   bfcl,
   mmmuPro,
+  polyglot,
+  terminalBench,
 ];
 
 export function getTest(id: string): TestDefinition<BaseCase> {
@@ -47,6 +51,7 @@ export interface TestSummary {
   requiresAny: string[];
   languages: string[];
   judged: boolean;
+  cliOnly: boolean;
   numCtx: number;
   options: TestOption[];
   /** current suite version (fixtures hash): history rows with another version are a different suite */
@@ -71,6 +76,7 @@ export async function listTests(): Promise<TestSummary[]> {
       requiresAny: t.requiresAny ?? [],
       languages: t.languages ? t.languages() : LANGUAGES.filter((l) => hasCases(t.casesFrom ?? t.id, l.code)).map((l) => l.code),
       judged: t.judged !== false,
+      cliOnly: !!t.cliOnly,
       numCtx: t.numCtx ?? 8192,
       options: await testOptions(t),
       baselines: (t.baselines?.() ?? []).map((b) => `${b.provider}:${b.name}`),
@@ -90,7 +96,7 @@ export async function listTests(): Promise<TestSummary[]> {
 }
 
 /** Can a model with these Ollama capabilities take this test? */
-export function isEligible(t: Pick<TestDefinition<BaseCase>, 'requires' | 'requiresAny'>, caps: string[]): boolean {
+export function isEligible(t: { requires: readonly string[]; requiresAny?: readonly string[] }, caps: string[]): boolean {
   return t.requires.every((c) => caps.includes(c)) && (!t.requiresAny?.length || t.requiresAny.some((c) => caps.includes(c)));
 }
 
@@ -109,10 +115,18 @@ export async function resolveOptions(t: TestDefinition<BaseCase>, input: Record<
  * Variant of a session for leaderboards/history: test options, plus num_ctx when it differs from the test's default
  * (a different context changes memory and speed, so those runs get their own row).
  */
-export function sessionVariant(testId: string, config: { extra?: Record<string, unknown>; numCtx?: number }): string {
+/**
+ * Variant label of a session: its test options, plus num_ctx when a non-default value was *requested*. A default
+ * that was only capped to a model's maximum (embeddinggemma: 2048 for a 12288 test) is still the default run.
+ */
+export function sessionVariant(
+  testId: string,
+  config: { extra?: Record<string, unknown>; numCtx?: number; numCtxRequested?: number },
+): string {
   const base = variantLabel(config.extra);
   const def = TESTS.find((t) => t.id === testId)?.numCtx ?? 8192;
-  const ctx = config.numCtx && config.numCtx !== def ? `num_ctx=${config.numCtx}` : '';
+  const requested = config.numCtxRequested ?? config.numCtx;
+  const ctx = requested && requested !== def ? `num_ctx=${requested}` : '';
   return [base, ctx].filter(Boolean).join(' · ');
 }
 

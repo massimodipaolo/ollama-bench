@@ -98,5 +98,40 @@
       { "type": "notRegex", "pattern": "^\\s*[-*•]\\s+", "flags": "m", "label": "nessun elenco puntato" },
       { "type": "language" }
     ]
+  },
+  {
+    "id": "mermaid-flowchart",
+    "title": "Diagramma di flusso Mermaid di una procedura",
+    "quick": true,
+    "prompt": "Rappresenta la procedura seguente come diagramma di flusso Mermaid. Requisiti: inizia con \"flowchart TD\"; metti le fasi di preparazione (attesa e raccolta dei tre dati) in un subgraph intitolato \"Preparazione\" e i passaggi nello strumento online in un subgraph intitolato \"Verifica stato\"; disegna ogni decisione come un rombo con gli archi in uscita etichettati (per esempio sì / no); mostra il ritorno indietro quando i dati inseriti non corrispondono; usa tra 12 e 25 nodi; racchiudi tra virgolette doppie ogni etichetta che contiene parentesi o virgolette. Etichette in italiano. Restituisci solo un blocco di codice ```mermaid, senza spiegazioni.",
+    "context": "Verificare lo stato di un rimborso fiscale\n\nQuando iniziare: se la dichiarazione è stata inviata per via telematica, attendi 24 ore prima di verificare; se è stata spedita in forma cartacea, attendi 4 settimane.\nCosa preparare: il codice fiscale, la situazione familiare dichiarata e l'importo esatto del rimborso (in euro interi) indicato nella dichiarazione.\nCome verificare: apri lo strumento online e inserisci i tre dati. Se non corrispondono alla dichiarazione registrata, lo strumento mostra un errore: controlla i dati e inseriscili di nuovo. Se corrispondono, lo strumento mostra uno di tre stati: Dichiarazione ricevuta, Rimborso approvato o Rimborso inviato.\n- Dichiarazione ricevuta: la dichiarazione è in lavorazione; verifica di nuovo il giorno dopo (lo strumento si aggiorna una volta al giorno, di solito di notte).\n- Rimborso approvato: lo strumento indica la data in cui il rimborso verrà inviato.\n- Rimborso inviato: con accredito su conto corrente, attendi fino a 5 giorni perché la banca lo registri; con assegno cartaceo, attendi alcune settimane per la consegna postale.\nQuando telefonare: solo se lo strumento lo indica, oppure se sono passati più di 21 giorni dall'invio telematico (6 settimane dalla spedizione cartacea) senza lo stato Rimborso approvato.",
+    "reference": "Un solo \"flowchart TD\" valido in un unico blocco ```mermaid, senza altro testo, con etichette in italiano. Subgraph \"Preparazione\": decisione sul tipo di invio (telematico -> attendi 24 ore; cartaceo -> attendi 4 settimane) e raccolta di codice fiscale, situazione familiare e importo esatto del rimborso. Subgraph \"Verifica stato\": inserimento dei tre dati -> decisione \"i dati corrispondono?\" con arco \"no\" che torna all'inserimento; decisione sullo stato con tre rami Dichiarazione ricevuta / Rimborso approvato / Rimborso inviato; Dichiarazione ricevuta -> verifica di nuovo il giorno dopo; Rimborso approvato -> data di invio del rimborso; Rimborso inviato -> decisione accredito su conto (fino a 5 giorni) o assegno (alcune settimane). La regola su quando telefonare (solo se lo strumento lo indica, o oltre 21 giorni dall'invio telematico / 6 settimane dalla spedizione senza Rimborso approvato) compare come decisione o nodo chiaramente etichettato. Ogni arco in uscita da una decisione è etichettato. Nessun passaggio, numero o stato inventato.",
+    "checks": [
+      {
+        "type": "mermaid",
+        "diagram": "flowchart",
+        "onlyBlock": true
+      },
+      {
+        "type": "mermaidGraph",
+        "minNodes": 12,
+        "maxNodes": 25,
+        "minDecisions": 4,
+        "minSubgraphs": 2,
+        "minLabelledEdges": 6,
+        "cycle": true,
+        "labels": [
+          "Dichiarazione ricevuta",
+          "Rimborso approvato",
+          "Rimborso inviato",
+          "24 ore",
+          "4 settimane"
+        ],
+        "subgraphTitles": [
+          "Preparazione",
+          "Verifica stato"
+        ]
+      }
+    ]
   }
 ]

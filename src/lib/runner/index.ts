@@ -13,6 +13,7 @@ import type { BaseCase, CaseOutput } from '@/lib/tests/types';
 import { createLive, emit, getLive, withOllamaLock } from './events';
 import { GenerationError } from '@/lib/tests/generate';
 import { sdkVersions } from '@/lib/versions';
+import { serverInstance } from './instance';
 
 export interface StartSessionInput {
   testId: string;
@@ -21,6 +22,8 @@ export interface StartSessionInput {
   config: Partial<SessionConfig>;
   /** add the test's remote baselines (e.g. Cohere) to this session; default true (batch runs add them once) */
   includeBaselines?: boolean;
+  /** capability batch this session belongs to */
+  batchId?: string;
 }
 
 const avg = (xs: (number | null | undefined)[]) => {
@@ -80,6 +83,8 @@ export async function startSession(input: StartSessionInput): Promise<string> {
       lang: lang.code,
       config,
       status: 'queued',
+      batchId: input.batchId,
+      instanceId: serverInstance(),
     })
     .run();
   picked.forEach((m, i) => {

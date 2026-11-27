@@ -1,5 +1,6 @@
 import type { CheckResult } from '@/db/schema';
 import { LANGUAGES, type LanguageConfig } from '@/config/languages';
+import type { MermaidAnalysis } from '@/lib/mermaid-check';
 
 /** Declarative checks usable from fixture JSON. */
 export type CheckSpec =
@@ -14,7 +15,31 @@ export type CheckSpec =
   | { type: 'notRegex'; pattern: string; flags?: string; label?: string }
   | { type: 'number'; value: number; tolerance?: number }
   | { type: 'inOrder'; values: string[]; label?: string }
-  | { type: 'language' };
+  | { type: 'language' }
+  /** exactly one ```mermaid block that the real Mermaid parser accepts (optionally of a given type, with nothing else) */
+  | { type: 'mermaid'; diagram?: string; onlyBlock?: boolean }
+  /** structure of a parsed flowchart; partial credit = share of requirements met */
+  | {
+      type: 'mermaidGraph';
+      minNodes?: number;
+      maxNodes?: number;
+      minDecisions?: number;
+      minSubgraphs?: number;
+      minLabelledEdges?: number;
+      /** require a loop (e.g. error -> retry) */
+      cycle?: boolean;
+      /** each must appear (case-insensitive) in some node or edge label */
+      labels?: string[];
+      /** each must appear (case-insensitive) in some subgraph title */
+      subgraphTitles?: string[];
+    };
+
+/** Results computed asynchronously before checking (checks themselves are synchronous). */
+export interface CheckContext {
+  mermaid?: MermaidAnalysis;
+}
+
+export const needsMermaid = (specs: CheckSpec[]) => specs.some((s) => s.type === 'mermaid' || s.type === 'mermaidGraph');
 
 export function wordCount(s: string) {
   return s.trim().split(/\s+/).filter(Boolean).length;
@@ -54,7 +79,7 @@ function lines(s: string) {
   return s.split(/\r?\n/).map((l) => l.trim());
 }
 
-export function runCheck(spec: CheckSpec, output: string, lang: LanguageConfig): CheckResult {
+export function runCheck(spec: CheckSpec, output: string, lang: LanguageConfig, ctx: CheckContext = {}): CheckResult {
   const out = output.trim();
   switch (spec.type) {
     case 'maxWords': {
@@ -146,7 +171,53 @@ export function runCheck(spec: CheckSpec, output: string, lang: LanguageConfig):
         detail: `detected ${d.code} (${Math.round(d.confidence * 100)}%)`,
       };
     }
+    case 'mermaid':
+      return mermaidCheck(spec, ctx.mermaid);
+    case 'mermaidGraph':
+      return mermaidGraphCheck(spec, ctx.mermaid);
   }
+}
+
+function mermaidCheck(spec: Extract<CheckSpec, { type: 'mermaid' }>, m: MermaidAnalysis | undefined): CheckResult {
+  const name = `valid Mermaid${spec.diagram ? ` ${spec.diagram}` : ''}`;
+  if (!m) return { name, pass: false, detail: 'not analysed' };
+  const problems = [
+    m.blocks === 0 ? 'no ```mermaid block' : m.blocks > 1 ? `${m.blocks} blocks (expected 1)` : '',
+    m.blocks > 0 && !m.valid ? `parse error: ${m.error}` : '',
+    m.valid && spec.diagram && !m.diagramType?.startsWith(spec.diagram) ? `type ${m.diagramType} (expected ${spec.diagram})` : '',
+    spec.onlyBlock && m.extraText ? 'text outside the code block' : '',
+  ].filter(Boolean);
+  return { name, pass: problems.length === 0, detail: problems.length ? problems.join('; ') : `${m.diagramType} parses` };
+}
+
+function mermaidGraphCheck(spec: Extract<CheckSpec, { type: 'mermaidGraph' }>, m: MermaidAnalysis | undefined): CheckResult {
+  const name = 'diagram structure';
+  if (!m?.valid || m.nodes === undefined)
+    return { name, pass: false, value: 0, detail: m?.valid ? 'not a flowchart' : 'diagram does not parse' };
+  const has = (hay: string[] | undefined, needle: string) => (hay ?? []).some((h) => h.toLowerCase().includes(needle.toLowerCase()));
+  const req: [string, boolean][] = [];
+  if (spec.minNodes !== undefined || spec.maxNodes !== undefined)
+    req.push([
+      `${m.nodes} nodes (${spec.minNodes ?? 0}–${spec.maxNodes ?? '∞'})`,
+      m.nodes >= (spec.minNodes ?? 0) && m.nodes <= (spec.maxNodes ?? Infinity),
+    ]);
+  if (spec.minDecisions !== undefined)
+    req.push([`${m.decisions} decisions (≥ ${spec.minDecisions})`, (m.decisions ?? 0) >= spec.minDecisions]);
+  if (spec.minSubgraphs !== undefined)
+    req.push([`${m.subgraphs} subgraphs (≥ ${spec.minSubgraphs})`, (m.subgraphs ?? 0) >= spec.minSubgraphs]);
+  if (spec.minLabelledEdges !== undefined)
+    req.push([`${m.labelledEdges} labelled edges (≥ ${spec.minLabelledEdges})`, (m.labelledEdges ?? 0) >= spec.minLabelledEdges]);
+  if (spec.cycle) req.push([m.hasCycle ? 'has a loop' : 'no loop', !!m.hasCycle]);
+  for (const l of spec.labels ?? []) req.push([`label "${l}"`, has([...(m.labels ?? []), ...(m.edgeLabels ?? [])], l)]);
+  for (const t of spec.subgraphTitles ?? []) req.push([`subgraph "${t}"`, has(m.subgraphTitles, t)]);
+  const met = req.filter(([, ok]) => ok).length;
+  const missed = req.filter(([, ok]) => !ok).map(([d]) => d);
+  return {
+    name,
+    pass: met === req.length,
+    value: req.length ? met / req.length : 1,
+    detail: missed.length ? `missing: ${missed.join(', ')}` : req.map(([d]) => d).join(', '),
+  };
 }
 
 /** 0–10 auto score: mean of check values (partial credit where provided). */

@@ -45,6 +45,14 @@ function imagePart(file: string): FilePart {
   };
 }
 
+/** The single user message for a case, per the session's options (shared by run() and the prompt preview). */
+function userContent(c: MmmuCase, extra: Record<string, unknown> | undefined): (FilePart | TextPart)[] {
+  const cot = (extra?.prompt ?? 'cot') === 'cot';
+  if (extra?.config === 'vision') return [imagePart(c.visionImage), { type: 'text', text: cot ? VISION_COT : VISION_DIRECT }];
+  const options = c.options.map((o, i) => `${LETTERS[i]}. ${o}`).join('\n');
+  return [...c.images.map(imagePart), { type: 'text', text: `${c.question}\n\nOptions:\n${options}\n\n${cot ? COT : DIRECT}` }];
+}
+
 /** "Answer: C" (last occurrence) → C; for direct prompts also a bare leading letter. */
 export function extractLetter(text: string, n: number): string | null {
   const valid = LETTERS.slice(0, n).join('');
@@ -93,13 +101,7 @@ export const mmmuPro: TestDefinition<MmmuCase> = {
   async run(ctx, c) {
     const vision = ctx.config.extra?.config === 'vision';
     const cot = (ctx.config.extra?.prompt ?? 'cot') === 'cot';
-    let content: (FilePart | TextPart)[];
-    if (vision) {
-      content = [imagePart(c.visionImage), { type: 'text', text: cot ? VISION_COT : VISION_DIRECT }];
-    } else {
-      const options = c.options.map((o, i) => `${LETTERS[i]}. ${o}`).join('\n');
-      content = [...c.images.map(imagePart), { type: 'text', text: `${c.question}\n\nOptions:\n${options}\n\n${cot ? COT : DIRECT}` }];
-    }
+    const content = userContent(c, ctx.config.extra);
     // CoT budget 8192: 4096 truncated qwen3.8:27b before its 'Answer: X' line on hard items
     const r = await runStream(ctx, { messages: [{ role: 'user', content }], maxOutputTokens: cot ? 8192 : 256 });
     const predicted = extractLetter(r.output, c.options.length);
@@ -118,4 +120,18 @@ export const mmmuPro: TestDefinition<MmmuCase> = {
   },
 
   judgeMaterial: (c, out) => ({ task: c.title, input: c.question, reference: c.answer, response: out.output }),
+
+  promptPreview(c, _lang, extra) {
+    const content = userContent(c, extra);
+    const files = content.filter((p): p is FilePart => p.type === 'file');
+    return {
+      task: `${c.title}: multiple choice, ${extra.config === 'vision' ? 'question and options only inside the screenshot' : 'question and options as text'}, ${(extra.prompt ?? 'cot') === 'cot' ? 'chain of thought' : 'direct answer'}`,
+      input: [
+        ...files.map((f) => `[image: ${f.filename}]`),
+        ...content.filter((p): p is TextPart => p.type === 'text').map((p) => `User: ${p.text}`),
+      ].join('\n\n'),
+      reference: `Correct option: ${c.answer}`,
+      attachments: files,
+    };
+  },
 };

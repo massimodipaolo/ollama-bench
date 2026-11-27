@@ -1,18 +1,24 @@
 /**
- * Benchmark datasets (OmniDocBench, BFCL, MMMU-Pro): only pinned manifests live in the repo
+ * Benchmark datasets (OmniDocBench, BFCL, MMMU-Pro, Polyglot): only pinned manifests live in the repo
  * (fixtures/<test>/manifest.json: dataset revision + selected item ids). This script downloads exactly those items
  * into .data/datasets/<test>/ (git-ignored) and builds the cases the tests read.
  *
- *   pnpm datasets:fetch                    # all three, from the committed manifests
+ *   pnpm datasets:fetch                    # all of them, from the committed manifests
+ *   pnpm datasets:fetch polyglot           # Polyglot: repo at the pinned commit + the Docker sandbox image
+ *   pnpm datasets:fetch terminal-bench     # Terminal-Bench 2.1 tasks (+ --pull: pre-pull the quick tasks' images)
  *   pnpm datasets:fetch bfcl mmmu-pro      # some of them
  *   pnpm datasets:fetch --select           # maintainer: re-select a stratified subset and rewrite the manifests
  *
- * Licenses: OmniDocBench is research-only / non-commercial (never commit its data); BFCL and MMMU-Pro are Apache-2.0.
+ * Licenses: OmniDocBench is research-only / non-commercial (never commit its data); BFCL and MMMU-Pro are Apache-2.0;
+ * Polyglot exercises come from Exercism (MIT, per-track LICENSE); Terminal-Bench is Apache-2.0.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { asyncBufferFromUrl, cachedAsyncBuffer, parquetMetadataAsync, parquetReadObjects } from 'hyparquet';
+import { CODE_LANGS, LANG_LABEL, exerciseFiles, imageTag, type CodeLang, type PolyglotCase } from '../../src/lib/tests/polyglot/config';
+import { parseTaskToml, type TbCase } from '../../src/lib/tests/terminal-bench/config';
 
 const ROOT = process.cwd();
 const DATA = path.join(ROOT, '.data', 'datasets');
@@ -404,6 +410,111 @@ async function mmmuPro() {
   console.log(`\nmmmu-pro: ${cases.length} items, ${(transferred / 1e6).toFixed(1)} MB transferred`);
 }
 
+// ---------- Polyglot (Aider-AI/polyglot-benchmark) ----------
+
+interface PolyglotManifest {
+  repo: string;
+  commit: string;
+  quick: string[];
+  count: number;
+}
+
+const run = (cmd: string, argv: string[], opts: { cwd?: string } = {}) => {
+  const r = spawnSync(cmd, argv, { stdio: 'inherit', ...opts });
+  if (r.status !== 0) throw new Error(`${cmd} ${argv.slice(0, 3).join(' ')} … failed (exit ${r.status ?? r.error?.message})`);
+};
+
+async function polyglot() {
+  const dir = path.join(DATA, 'polyglot');
+  const m = readJson<PolyglotManifest>(path.join(FIX, 'polyglot', 'manifest.json'));
+  const repo = path.join(dir, 'repo');
+  const stamp = path.join(repo, '.commit');
+  if (!fs.existsSync(stamp) || fs.readFileSync(stamp, 'utf8').trim() !== m.commit) {
+    const tgz = path.join(dir, `${m.commit.slice(0, 12)}.tar.gz`);
+    const bytes = await download(`https://codeload.github.com/${m.repo}/tar.gz/${m.commit}`, tgz);
+    console.log(`polyglot: ${(bytes / 1e6).toFixed(1)} MB at ${m.commit.slice(0, 12)}`);
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.mkdirSync(repo, { recursive: true });
+    // relative paths: GNU tar (Git for Windows) reads "C:\…" as a remote host
+    run('tar', ['-xzf', path.basename(tgz), '-C', 'repo', '--strip-components=1'], { cwd: dir });
+    fs.writeFileSync(stamp, m.commit);
+  }
+  const cases: PolyglotCase[] = [];
+  for (const codeLang of CODE_LANGS) {
+    const base = path.join(repo, codeLang, 'exercises', 'practice');
+    for (const name of fs.readdirSync(base).sort()) {
+      const id = `${codeLang}/${name}`;
+      const files = exerciseFiles(path.join(base, name));
+      cases.push({
+        id,
+        title: `${LANG_LABEL[codeLang as CodeLang]} · ${name}`,
+        quick: m.quick.includes(id) || undefined,
+        codeLang: codeLang as CodeLang,
+        dir: path.posix.join('repo', codeLang, 'exercises', 'practice', name),
+        ...files,
+      });
+    }
+  }
+  if (cases.length !== m.count) throw new Error(`polyglot: ${cases.length} exercises, manifest says ${m.count}`);
+  const missing = m.quick.filter((q) => !cases.some((c) => c.id === q));
+  if (missing.length) throw new Error(`polyglot: quick ids not found: ${missing.join(', ')}`);
+  writeJson(path.join(dir, 'cases.json'), cases);
+  console.log(
+    `polyglot: ${cases.length} exercises (${CODE_LANGS.map((l) => `${l} ${cases.filter((c) => c.codeLang === l).length}`).join(', ')})`,
+  );
+
+  // sandbox image: toolchains + offline caches warmed from these exercises
+  const tag = imageTag(ROOT, m.commit);
+  const have = spawnSync('docker', ['image', 'inspect', tag], { stdio: 'ignore' }).status === 0;
+  if (have) console.log(`polyglot: image ${tag} already built`);
+  else {
+    console.log(`polyglot: building ${tag} (toolchains for 6 languages; first build takes a while)…`);
+    run('docker', ['build', '-t', tag, '-f', path.join(ROOT, 'docker', 'polyglot', 'Dockerfile'), dir]);
+  }
+}
+
+// ---------- Terminal-Bench 2.1 (harbor-framework/terminal-bench-2-1) ----------
+
+async function terminalBench() {
+  const dir = path.join(DATA, 'terminal-bench');
+  const m = readJson<{ repo: string; commit: string; quick: string[]; count: number }>(path.join(FIX, 'terminal-bench', 'manifest.json'));
+  const repo = path.join(dir, 'repo');
+  const stamp = path.join(repo, '.commit');
+  if (!fs.existsSync(stamp) || fs.readFileSync(stamp, 'utf8').trim() !== m.commit) {
+    const tgz = path.join(dir, `${m.commit.slice(0, 12)}.tar.gz`);
+    const bytes = await download(`https://codeload.github.com/${m.repo}/tar.gz/${m.commit}`, tgz);
+    console.log(`terminal-bench: ${(bytes / 1e6).toFixed(1)} MB at ${m.commit.slice(0, 12)}`);
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.mkdirSync(repo, { recursive: true });
+    // relative paths: GNU tar (Git for Windows) reads "C:\\…" as a remote host; only tasks/ is needed
+    run('tar', ['-xzf', path.basename(tgz), '-C', 'repo', '--strip-components=1', '--wildcards', '*/tasks/*'], { cwd: dir });
+    fs.writeFileSync(stamp, m.commit);
+  }
+  const tasksDir = path.join(repo, 'tasks');
+  const cases: TbCase[] = fs
+    .readdirSync(tasksDir)
+    .filter((n) => fs.existsSync(path.join(tasksDir, n, 'task.toml')))
+    .sort()
+    .map((name) => ({
+      ...parseTaskToml(name, fs.readFileSync(path.join(tasksDir, name, 'task.toml'), 'utf8')),
+      quick: m.quick.includes(name) || undefined,
+      dir: path.posix.join('repo', 'tasks', name),
+    }));
+  if (cases.length !== m.count) throw new Error(`terminal-bench: ${cases.length} tasks, manifest says ${m.count}`);
+  const missing = m.quick.filter((q) => !cases.some((c) => c.id === q));
+  if (missing.length) throw new Error(`terminal-bench: quick tasks not found: ${missing.join(', ')}`);
+  writeJson(path.join(dir, 'cases.json'), cases);
+  console.log(`terminal-bench: ${cases.length} tasks (quick: ${m.quick.join(', ')})`);
+  if (args.includes('--pull')) {
+    for (const c of cases.filter((x) => x.quick)) {
+      console.log(`terminal-bench: pulling ${c.image}`);
+      run('docker', ['pull', '-q', c.image]);
+    }
+  }
+}
+
 if (want('omnidocbench')) await omnidocbench();
 if (want('bfcl')) await bfcl();
 if (want('mmmu-pro')) await mmmuPro();
+if (want('polyglot')) await polyglot();
+if (want('terminal-bench')) await terminalBench();

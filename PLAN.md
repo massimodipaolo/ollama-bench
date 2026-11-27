@@ -46,7 +46,7 @@ I draft the gold references, Q&A sets and relevance labels in `fixtures/`, and y
 
 | # | Test | Requires | Run | Automatic checks | Judges score |
 |---|---|---|---|---|---|
-| 1 | Text generation | completion | summarize, follow constrained instructions, reasoning, rewrite/translate (en/it) | length/format limits, response language | relevance, accuracy, instruction following, fluency |
+| 1 | Text generation | completion | summarize, follow constrained instructions, reasoning, rewrite/translate (en/it), a medium Mermaid flowchart of a procedure | length/format limits, response language, Mermaid parses + graph structure | relevance, accuracy, instruction following, fluency |
 | 2 | Structured output | completion | zod schemas that get harder (flat → nested → arrays/enums/unions) extracted from the sample docs | schema valid, per-field accuracy, retries | meaning of free-text fields |
 | 3 | Image recognition | vision | JPG infographic + rasterized PDF pages: OCR, layout, Q&A, description | exact/numeric match on key facts | completeness, made-up details |
 | 4 | Doc → Markdown | completion (+vision) | PDF/DOCX/CSV/XLSX → Markdown. Mode A: extracted text, model rebuilds the structure. Mode B: page image → vision model | similarity to gold .md, headings/tables kept, cell accuracy | fidelity, structure |
@@ -67,8 +67,13 @@ run_scores    run_id, auto_score, judge_openai, judge_google, judge_anthropic, j
 
 ## UI
 
-- `/`: leaderboard per test (columns: OpenAI · Google · Anthropic · **Avg** · Auto · tok/s) and recent runs
-- `/run`: test → language → 1–2 models (filtered by capability) → options → live side-by-side progress (server-sent events)
+- `/`: **By test** (leaderboard per test: OpenAI · Google · Anthropic · **Avg** · Auto · tok/s) or **By capability**
+  (overview matrix, or one capability's tests per model), plus recent runs
+- `/run`: **Single test** (test → language → 1–2 models → options) or **Capability** (capability → tests → language →
+  1–2 models → batch) → live side-by-side progress (server-sent events)
+- `/batches/[id]`: a capability batch, test × model grid
+- `/models/compare?a=&b=`: two models (sharing an Ollama capability) side by side: polar charts by capability and by
+  test (bars below 3 axes), a score table with differences, and both histories per test
 - `/runs/[id]`: per-case outputs, checks, each judge's score and rationale, metrics
 - `/models/[id]`: history across tests and digests, speed vs quality chart
 - `/tests/[id]`: history of every model on that test
@@ -99,7 +104,39 @@ run_scores    run_id, auto_score, judge_openai, judge_google, judge_anthropic, j
     "irrelevance"); MMMU-Pro standard 0/5 / 2/5, vision 2/5 / 2/5 (qwen truncated at 4,096 tokens in 4 cases → CoT budget
     raised to 8,192, test v2). hyparquet pitfall: read binary columns with `utf8: false`, or image bytes get decoded as
     UTF-8 text.
-10. Next candidates: MCP-Atlas (no-key servers), IFEval/IFBench, RULER; a real TEDS for OmniDocBench tables.
+10. ✅ Capabilities (2026-11-27): dashboard and run form switch between **By test** and **By capability**
+    (Text, Vision, Tools, Retrieval; `src/config/capabilities.ts`). Capability leaderboards average the current-suite
+    default-variant results; a model is ranked only with every test it can take (eligibility by Ollama capabilities,
+    baselines never ranked). Capability **batches** (`batches` table, `sessions.batch_id`, `/batches/[id]`) run one
+    session per test with the same 1–2 models. Also: sessions left queued/running by a stopped server are marked
+    interrupted at startup (`src/instrumentation.ts`); a capped default `num_ctx` is no longer labelled as a variant
+    (the label follows the requested value).
+11. ✅ Mermaid generation (2026-11-27): text-generation v2 adds `mermaid-flowchart` (en + it, quick). The
+    model turns a refund-status procedure into a `flowchart TD` with two named subgraphs, labelled decision diamonds, a
+    retry loop and 12–25 nodes. The real Mermaid parser runs server-side
+    (`src/lib/mermaid-check.ts`; DOMPurify gets pass-through functions because Node has no window; `mermaid` and
+    `dompurify` are server externals). Checks: `mermaid` (one block, parses, flowchart, nothing else) and
+    `mermaidGraph` (node / decision / subgraph / labelled-edge counts, a loop, required labels in nodes or edges,
+    subgraph titles; partial credit). Judges cover fidelity, e.g. which steps sit in which subgraph. First run:
+    gemma4:e4b valid (structure 10, judges about 5: its "Prepare" subgraph holds only one step); granite4.2:8b invalid
+    (`::` suffixes, stray `end`; auto 0, judges 2.5–3).
+12. ✅ Coding (2026-11-27). **Polyglot** (Aider's 225 exercises, 6 languages; Aider's prompts, 2 tries, test
+    commands; whole-file edit format) in a no-network Docker sandbox built on this machine. `polyglot:verify` passes
+    225/225 reference solutions after three harness fixes: Jest pinned to 29 (Jest 30 dropped `toThrowError`), C++
+    folder naming, and Rust `Cargo-example.toml` for verify. **Terminal-Bench 2.1** (89 tasks, CLI only): AI SDK agent
+    with a `bash` tool in each task's prebuilt image, then Harbor's verifier protocol. `tb:verify` gives 5/5 on the
+    quick tasks. New Coding capability (polyglot + terminal-bench); `cliOnly` tests are excluded from plain
+    `pnpm bench` and from the run form. First Polyglot quick: qwen3.8:27b 4/6 (3 on the second try), gemma4:e4b 0/6
+    (genuine test failures).
+    Follow-ups the first real runs exposed:
+    - Polyglot v2–v4: Java feedback without `-q`; a path on the code block's first line names the file; framework
+      stack frames dropped from retry feedback.
+    - Terminal-Bench: stop after 8 identical commands ("stuck"); the docker helper always settles on timeout (a stalled
+      `docker exec` on Windows blocked a whole task).
+    - App servers register in `server_instances` and heartbeat every 20 s. Startup recovery only takes over sessions
+      and containers of dead servers: a second dev server on :3000 had marked a live server's sessions as interrupted.
+    - Confirmation runs (quick, qwen3.8:27b): Terminal-Bench 2/5 in 11 min (was 1/5 in 33 min); Polyglot v3 4/6.
+13. Next candidates: MCP-Atlas (no-key servers), IFEval/IFBench, RULER; a real TEDS for OmniDocBench tables.
 
 ## Local rerankers in Ollama (tested 2026-11-26, Ollama 0.40.18)
 

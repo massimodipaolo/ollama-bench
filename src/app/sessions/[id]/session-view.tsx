@@ -5,6 +5,33 @@ import Link from 'next/link';
 import type { SessionEvent } from '@/lib/runner/events';
 import type { CheckResult, CriterionScore } from '@/db/schema';
 import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtMs, fmtNum } from '@/components/score';
+import { PromptButton } from './prompt-button';
+import { Markdown } from '@/components/markdown';
+
+/** Raw text / rendered Markdown switch (applies to every model column of a case, so they stay comparable). */
+function ViewToggle({ preview, onChange, label }: { preview: boolean; onChange: (preview: boolean) => void; label: string }) {
+  return (
+    <span className="inline-flex overflow-hidden rounded-md border border-line text-xs font-normal" role="group" aria-label={label}>
+      {(
+        [
+          [false, 'Raw'],
+          [true, 'Preview'],
+        ] as const
+      ).map(([v, text]) => (
+        <button
+          key={text}
+          type="button"
+          aria-pressed={preview === v}
+          onClick={() => onChange(v)}
+          className={`border-l border-line px-2 py-0.5 first:border-l-0 ${preview === v ? 'bg-accent text-accent-fg' : 'text-muted hover:text-fg'}`}
+          title={v ? 'Render the output as Markdown' : 'Show the output exactly as returned'}
+        >
+          {text}
+        </button>
+      ))}
+    </span>
+  );
+}
 
 interface JudgeCell {
   score: number | null;
@@ -194,6 +221,9 @@ export function SessionView({ id }: { id: string }) {
   const [state, setState] = useState<ViewState | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [liveKey, setLiveKey] = useState(0);
+  // Markdown preview: one default for the page, plus per-case overrides
+  const [previewAll, setPreviewAll] = useState(false);
+  const [previewCase, setPreviewCase] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let es: EventSource | null = null;
@@ -357,10 +387,31 @@ export function SessionView({ id }: { id: string }) {
 
       {/* Per-case side-by-side */}
       <div className="space-y-4">
+        <div className="flex items-center justify-end gap-2 text-xs text-muted">
+          Outputs
+          <ViewToggle
+            label="Show every output as"
+            preview={previewAll}
+            onChange={(v) => {
+              setPreviewAll(v);
+              setPreviewCase({});
+            }}
+          />
+        </div>
         {[...caseIds, ...extraIds].map((cid) => (
           <section key={cid} className="rounded-lg border border-line bg-panel">
-            <h3 className="border-b border-line px-4 py-2 font-medium">
-              {state.cases.find((c) => c.id === cid)?.title ?? cid} <span className="font-mono text-xs text-muted">{cid}</span>
+            <h3 className="flex items-center gap-2 border-b border-line px-4 py-2 font-medium">
+              <span>
+                {state.cases.find((c) => c.id === cid)?.title ?? cid} <span className="font-mono text-xs text-muted">{cid}</span>
+              </span>
+              <span className="ml-auto flex items-center gap-2">
+                <ViewToggle
+                  label="Show this case's outputs as"
+                  preview={previewCase[cid] ?? previewAll}
+                  onChange={(v) => setPreviewCase((p) => ({ ...p, [cid]: v }))}
+                />
+                <PromptButton sessionId={id} caseId={cid} />
+              </span>
             </h3>
             <div className={`grid divide-line ${gridCols(state.runs.length)} md:divide-x`}>
               {state.runs.map((r) => (
@@ -369,6 +420,7 @@ export function SessionView({ id }: { id: string }) {
                   cell={r.cases[cid]}
                   judgeIds={judgeIds}
                   label={state.runs.length > 1 ? `${r.label} · ${r.model.name}` : undefined}
+                  preview={previewCase[cid] ?? previewAll}
                   onRejudge={running ? undefined : rejudgeOne}
                 />
               ))}
@@ -407,10 +459,13 @@ function CaseColumn({
   judgeIds,
   label,
   onRejudge,
+  preview = false,
 }: {
   cell?: CaseCell;
   judgeIds: string[];
   label?: string;
+  /** render the output as Markdown instead of raw text */
+  preview?: boolean;
   onRejudge?: (caseResultId: number, judge: string) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
@@ -435,14 +490,21 @@ function CaseColumn({
         </details>
       )}
       {cell.status === 'done' && <ToolTrace data={cell.data} />}
+      {cell.status === 'done' && <AttemptsView data={cell.data} />}
       {cell.status === 'done' && <RetrievalView data={cell.data} />}
       {/* retrieval tests: the ranked list above replaces the plain-text ranking */}
-      {!(cell.status === 'done' && (cell.data as { ranked?: unknown } | undefined)?.ranked) && (
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-code p-3 font-mono text-[13px] leading-relaxed">
-          {cell.output}
-          {cell.status === 'running' && <span className="animate-pulse">▍</span>}
-        </pre>
-      )}
+      {!(cell.status === 'done' && (cell.data as { ranked?: unknown } | undefined)?.ranked) &&
+        (preview && cell.output ? (
+          <div className="max-h-96 overflow-auto rounded-md border border-line p-3">
+            <Markdown text={cell.output} />
+            {cell.status === 'running' && <span className="animate-pulse">▍</span>}
+          </div>
+        ) : (
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-code p-3 font-mono text-[13px] leading-relaxed">
+            {cell.output}
+            {cell.status === 'running' && <span className="animate-pulse">▍</span>}
+          </pre>
+        ))}
       {cell.error && <p className="text-xs text-bad">{cell.error}</p>}
       {cell.status === 'done' && (
         <>
@@ -584,6 +646,38 @@ function ToolTrace({ data }: { data: unknown }) {
         ))}
       </ol>
     </details>
+  );
+}
+
+interface TestAttempt {
+  pass: boolean;
+  timedOut: boolean;
+  testMs: number;
+  missing: string[];
+  output: string;
+}
+
+/** Coding tests: each try's unit-test outcome, with the test output on demand. */
+function AttemptsView({ data }: { data: unknown }) {
+  const attempts = (data as { attempts?: TestAttempt[] } | undefined)?.attempts;
+  if (!attempts?.length) return null;
+  return (
+    <ol className="space-y-1 text-xs">
+      {attempts.map((a, i) => (
+        <li key={i}>
+          <details>
+            <summary className="cursor-pointer">
+              <span className={a.pass ? 'text-good' : 'text-bad'}>
+                {a.pass ? '✓' : '✗'} Try {i + 1}: tests {a.pass ? 'pass' : a.timedOut ? 'timed out' : 'fail'}
+              </span>{' '}
+              <span className="text-muted tabular">· {fmtMs(a.testMs)}</span>
+              {a.missing.length > 0 && <span className="text-mid"> · not returned: {a.missing.join(', ')}</span>}
+            </summary>
+            <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-code p-2 font-mono">{a.output || '(no output)'}</pre>
+          </details>
+        </li>
+      ))}
+    </ol>
   );
 }
 

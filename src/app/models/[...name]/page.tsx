@@ -54,7 +54,13 @@ async function ModelView({ params }: Pick<PageProps<'/models/[...name]'>, 'param
             </p>
           ))}
         </div>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-3">
+          <Link
+            href={`/models?compare=${encodeURIComponent(name)}#compare`}
+            className="rounded-md border border-line px-2 py-1 text-xs text-muted hover:text-fg"
+          >
+            Compare with…
+          </Link>
           <ExportLinks query={`model=${encodeURIComponent(name)}`} />
         </span>
       </div>

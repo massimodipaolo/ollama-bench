@@ -19,7 +19,8 @@ import { inTier, parseTier } from '../src/lib/tiers';
 const HELP = `Usage: pnpm bench [options]
 
   --url <url>            app URL (default $BENCH_URL or http://localhost:3000)
-  --tests <ids>          comma-separated test ids (default: all)
+  --tests <ids>          comma-separated test ids (default: all, except hours-long ones like terminal-bench,
+                         which run only when named: --tests terminal-bench)
   --models <list>        comma-separated model names or /regex/ (default: every compatible model)
   --exclude <list>       models to leave out (names or /regex/)
   --tier <t>             model size: small (<10B) | medium (10-50B) | large (>50B) | all (default)
@@ -82,6 +83,8 @@ interface TestSummary {
   options: TestOption[];
   suiteVersion: string;
   numCtx?: number;
+  /** hours-long (e.g. terminal-bench): only when named in --tests */
+  cliOnly?: boolean;
   baselines: string[];
   caseCounts: Record<string, { quick: number; full: number }>;
 }
@@ -129,7 +132,16 @@ const list = (s?: string) =>
     : [];
 
 async function api<T>(p: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${p}`, init);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${p}`, init);
+  } catch (e) {
+    // connection refused & co.: the CLI drives the app's API, so the app must be running
+    const cause = (e as { cause?: { code?: string } }).cause?.code ?? (e as Error).message;
+    throw new Error(
+      `Can't reach the app at ${BASE} (${cause}). Start it with "pnpm dev" (or "pnpm build && pnpm start"), or point to a running one with --url / BENCH_URL.`,
+    );
+  }
   const body = await res.text();
   if (!res.ok) throw new Error(`${init?.method ?? 'GET'} ${p} → ${res.status} ${body.slice(0, 300)}`);
   return JSON.parse(body) as T;
@@ -174,11 +186,9 @@ if (NUM_CTX !== undefined && !(Number.isInteger(NUM_CTX) && NUM_CTX > 0)) {
   console.error(`--num-ctx must be a positive integer (got ${a['num-ctx']})`);
   process.exit(1);
 }
-/** Same rule as the server (runner ctxFor + registry sessionVariant): cap at the model's max, label only non-defaults. */
-function ctxVariant(t: TestSummary, m: ModelInfo): string {
-  if (NUM_CTX === undefined) return '';
-  const eff = m.contextLength && m.contextLength > 0 ? Math.min(NUM_CTX, m.contextLength) : NUM_CTX;
-  return eff !== (t.numCtx ?? 8192) ? `num_ctx=${eff}` : '';
+/** Same rule as the server (registry sessionVariant): a non-default *requested* value is labelled (the server caps it). */
+function ctxVariant(t: TestSummary): string {
+  return NUM_CTX !== undefined && NUM_CTX !== (t.numCtx ?? 8192) ? `num_ctx=${NUM_CTX}` : '';
 }
 
 interface Job {
@@ -252,7 +262,8 @@ async function main() {
   const testIds = list(a.tests);
   const unknown = testIds.filter((id) => !allTests.some((t) => t.id === id));
   if (unknown.length) throw new Error(`Unknown test(s): ${unknown.join(', ')}. Available: ${allTests.map((t) => t.id).join(', ')}`);
-  const tests = testIds.length ? allTests.filter((t) => testIds.includes(t.id)) : allTests;
+  // long agentic benchmarks (cliOnly) never ride along with "all tests": name them in --tests
+  const tests = testIds.length ? allTests.filter((t) => testIds.includes(t.id)) : allTests.filter((t) => !t.cliOnly);
   const include = a.models ? matcher(list(a.models)) : () => true;
   const exclude = a.exclude ? matcher(list(a.exclude)) : () => false;
   if (a.tier && parseTier(a.tier) !== a.tier) throw new Error(`--tier must be one of: all, small, medium, large`);
@@ -272,7 +283,7 @@ async function main() {
       if (!eligible(t, m.capabilities)) continue;
       for (const lang of t.languages.filter((l) => !langs.length || langs.includes(l))) {
         for (const extra of variants(t)) {
-          const variant = [variantLabel(extra), ctxVariant(t, m)].filter(Boolean).join(' · ');
+          const variant = [variantLabel(extra), ctxVariant(t)].filter(Boolean).join(' · ');
           const done = history.some(
             (h) =>
               h.status === 'done' &&

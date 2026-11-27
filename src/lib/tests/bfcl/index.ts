@@ -73,4 +73,13 @@ export const bfcl: TestDefinition<BfclCase> = {
     reference: JSON.stringify(c.groundTruth),
     response: out.output,
   }),
+
+  promptPreview: (c) => ({
+    task: `${c.title} (${c.category}): one step, answer with the right function call(s)`,
+    input: [
+      (c.question[0] ?? []).map((m) => `${m.role === 'system' ? 'System' : 'User'}: ${m.content}`).join('\n\n'),
+      `Functions available as tools:\n${JSON.stringify(c.functions, null, 2)}`,
+    ].join('\n\n'),
+    reference: `Accepted calls (ground truth):\n${JSON.stringify(c.groundTruth, null, 2)}`,
+  }),
 };
