@@ -16,7 +16,7 @@ import { parseArgs } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
 import { inTier, parseTier } from '../src/lib/tiers';
-import { CAPABILITIES, getCapability } from '../src/config/capabilities';
+import { CAPABILITIES } from '../src/config/capabilities';
 
 const HELP = `Usage: pnpm bench [options]
 
@@ -89,7 +89,7 @@ interface TestSummary {
   options: TestOption[];
   suiteVersion: string;
   numCtx?: number;
-  /** hours-long (e.g. terminal-bench): only when named in --tests */
+  /** hours-long (e.g. terminal-bench): only when named in --tests or via its capability in --capabilities */
   cliOnly?: boolean;
   baselines: string[];
   caseCounts: Record<string, { quick: number; full: number }>;
@@ -260,20 +260,31 @@ async function waitForSession(id: string, onEvent: (e: { type: string; [k: strin
 }
 
 async function main() {
-  const [{ tests: allTests, judges: configuredJudges, sdk }, { models: allModels, host }] = await Promise.all([
-    api<{ tests: TestSummary[]; judges: { id: string }[]; sdk: Record<string, string> }>('/api/tests'),
+  const [{ tests: allTests, capabilities: appCaps, judges: configuredJudges, sdk }, { models: allModels, host }] = await Promise.all([
+    api<{
+      tests: TestSummary[];
+      capabilities?: { id: string; tests: string[] }[];
+      judges: { id: string }[];
+      sdk: Record<string, string>;
+    }>('/api/tests'),
     api<{ models: ModelInfo[]; host: string }>('/api/models'),
   ]);
+
+  // a flag given but empty (e.g. --capabilities "$CAPS" with CAPS unset) must not fall back to the whole suite
+  for (const flag of ['tests', 'capabilities'] as const)
+    if (a[flag] !== undefined && !list(a[flag]).length) throw new Error(`--${flag} is empty: name at least one, or leave the flag out`);
 
   const testIds = list(a.tests);
   const unknown = testIds.filter((id) => !allTests.some((t) => t.id === id));
   if (unknown.length) throw new Error(`Unknown test(s): ${unknown.join(', ')}. Available: ${allTests.map((t) => t.id).join(', ')}`);
-  // --capabilities expands to the tests src/config/capabilities.ts lists for them (a test added there is picked up)
+  // --capabilities expands to the tests the app at --url lists for them (src/config/capabilities.ts), so a test added
+  // there is picked up; an older app that doesn't report them falls back to this checkout's config
+  const caps = appCaps ?? CAPABILITIES;
+  if (!appCaps && a.capabilities) console.warn(`${BASE} doesn't report its capabilities (older build): using this checkout's`);
   const capIds = list(a.capabilities);
-  const unknownCaps = capIds.filter((id) => !getCapability(id));
-  if (unknownCaps.length)
-    throw new Error(`Unknown capability: ${unknownCaps.join(', ')}. Available: ${CAPABILITIES.map((c) => c.id).join(', ')}`);
-  const capTests = [...new Set(capIds.flatMap((id) => getCapability(id)!.tests))];
+  const unknownCaps = capIds.filter((id) => !caps.some((c) => c.id === id));
+  if (unknownCaps.length) throw new Error(`Unknown capability: ${unknownCaps.join(', ')}. Available: ${caps.map((c) => c.id).join(', ')}`);
+  const capTests = [...new Set(capIds.flatMap((id) => caps.find((c) => c.id === id)!.tests))];
   const missing = capTests.filter((id) => !allTests.some((t) => t.id === id));
   if (missing.length) console.warn(`Not in this app's suite, skipped: ${missing.join(', ')}`);
   const wanted = new Set([...testIds, ...capTests]);

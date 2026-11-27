@@ -235,8 +235,10 @@ pnpm bench --capabilities vision,tools --tier small   # every test of these capa
 pnpm bench --help
 ```
 
-`--capabilities` reads the capability → tests mapping from `src/config/capabilities.ts`, so a test added to a
-capability there is included without touching the CLI. It combines with `--tests`. Hours-long tests are included
+`--capabilities` takes the capability → tests mapping (`src/config/capabilities.ts`) from the app it talks to
+(`/api/tests`), so it matches that build, and a test added to a capability there is included without touching the
+CLI. An older build that doesn't report it falls back to the local checkout's config, with a warning. It combines
+with `--tests`; an empty `--tests` or `--capabilities` is an error, not "everything". Hours-long tests are included
 when their capability is named (`coding` → Terminal-Bench); a plain `pnpm bench` still skips them.
 
 - It talks to the app through its API (`--url`, default `$BENCH_URL` or `http://localhost:3000`). Sessions share the
