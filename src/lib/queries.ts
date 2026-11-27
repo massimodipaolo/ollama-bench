@@ -69,7 +69,14 @@ export function recentSessions(limit = 20, testId?: string): SessionListItem[] {
   const sessions = db
     .select()
     .from(schema.sessions)
-    .where(testId ? eq(schema.sessions.testId, testId) : inArray(schema.sessions.testId, TESTS.map((t) => t.id)))
+    .where(
+      testId
+        ? eq(schema.sessions.testId, testId)
+        : inArray(
+            schema.sessions.testId,
+            TESTS.map((t) => t.id),
+          ),
+    )
     .orderBy(desc(schema.sessions.createdAt))
     .limit(limit)
     .all();
@@ -310,6 +317,8 @@ export interface CapabilityCell {
   lastRunAt: number;
   /** from an older suite version of the test (cases changed since): shown, but not counted */
   stale: boolean;
+  /** generation throughput of that run; null for tests that don't generate text (embeddings, reranking) */
+  tokPerSec: number | null;
 }
 export interface CapabilityRow {
   model: string;
@@ -390,7 +399,7 @@ export async function capabilityBoard(capabilityId: string, lang: string, tier: 
         };
         byModel.set(r.model, row);
       }
-      row.cells[t.id] = { score: mainScore(r), sessionId: r.sessionId, lastRunAt: r.lastRunAt, stale };
+      row.cells[t.id] = { score: mainScore(r), sessionId: r.sessionId, lastRunAt: r.lastRunAt, stale, tokPerSec: r.avgTokPerSec };
       if (!stale && r.avgTokPerSec != null) row.tok.push(r.avgTokPerSec);
     }
   }
@@ -429,12 +438,19 @@ export interface OverviewRow {
   parameterSize: string | null;
   baseline: boolean;
   scores: Record<string, OverviewCell | undefined>;
+  /** mean of the ranked capability scores (the table's sort key); null when no capability is ranked */
+  overall: number | null;
+  /** labels of the capabilities in `overall` */
+  overallOf: string[];
+  /** mean tokens/s over the model's current results, each test once (RAG sits in two capabilities) */
+  avgTokPerSec: number | null;
 }
 
 /** Model x capability matrix (each capability's score as in capabilityBoard), best ranked mean first. */
 export async function capabilityOverview(lang: string, tier: Tier = 'all'): Promise<OverviewRow[]> {
   const boards = (await Promise.all(CAPABILITIES.map((c) => capabilityBoard(c.id, lang, tier)))).filter((b): b is CapabilityBoard => !!b);
   const rows = new Map<string, OverviewRow>();
+  const tok = new Map<string, Map<string, number>>(); // model -> test -> tokens/s
   for (const b of boards)
     for (const r of b.rows) {
       const row = rows.get(r.model) ?? {
@@ -443,18 +459,27 @@ export async function capabilityOverview(lang: string, tier: Tier = 'all'): Prom
         parameterSize: r.parameterSize,
         baseline: r.baseline,
         scores: {},
+        overall: null,
+        overallOf: [],
+        avgTokPerSec: null,
       };
       row.scores[b.capability.id] = { score: r.score, ranked: r.ranked, covered: r.covered, required: r.required };
+      if (r.ranked && r.score != null) row.overallOf.push(b.capability.label);
       rows.set(r.model, row);
+      const t = tok.get(r.model) ?? new Map<string, number>();
+      for (const [testId, c] of Object.entries(r.cells)) if (c && !c.stale && c.tokPerSec != null) t.set(testId, c.tokPerSec);
+      tok.set(r.model, t);
     }
-  const rankedMean = (r: OverviewRow) =>
-    mean(
-      Object.values(r.scores)
+  for (const row of rows.values()) {
+    row.overall = mean(
+      Object.values(row.scores)
         .filter((x): x is OverviewCell => !!x && x.ranked && x.score != null)
         .map((x) => x.score!),
-    ) ?? -1;
+    );
+    row.avgTokPerSec = mean([...(tok.get(row.model)?.values() ?? [])]);
+  }
   return [...rows.values()].sort(
-    (a, b) => Number(a.baseline) - Number(b.baseline) || rankedMean(b) - rankedMean(a) || a.model.localeCompare(b.model),
+    (a, b) => Number(a.baseline) - Number(b.baseline) || (b.overall ?? -1) - (a.overall ?? -1) || a.model.localeCompare(b.model),
   );
 }
 

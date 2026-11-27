@@ -64,6 +64,7 @@ The dashboard and the run form both have two views.
 | Text | text-generation, structured-output, doc-to-markdown, rag |
 | Vision | image-recognition, omnidocbench, mmmu-pro |
 | Tools | tool-use, bfcl, mcp, web-search |
+| Coding | terminal-bench |
 | Retrieval | embeddings, reranking, rag |
 
 **Capability leaderboard** (`/?view=capability&cap=vision&lang=en`):
@@ -77,6 +78,9 @@ The dashboard and the run form both have two views.
   without credits) are not required. Partial rows are shown in brackets. Remote baselines (Cohere) are shown for
   reference and never ranked.
 - **Overview** shows a model × capability matrix. Each score cell links to its session.
+- **Speed vs quality** under each table: ranked models only, score against mean tokens/s over the same results. In
+  Overview the score is the mean of the model's ranked capabilities (tooltip lists them), and tokens/s counts each test
+  once. Models with no tokens/s (embedding, reranking) are left out and counted in the note.
 
 **Capability runs** (`/run`, Capability tab): pick a capability, uncheck any tests you don't want, then pick 1–2
 models. The model list only shows models that can take every checked test. This starts a **batch**: one session per

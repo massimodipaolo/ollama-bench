@@ -32,7 +32,7 @@ export const CAPABILITIES: CapabilityDef[] = [
   {
     id: 'coding',
     label: 'Coding',
-    description: 'Code that passes unit tests (six languages) and agentic terminal tasks',
+    description: "Agentic terminal tasks (software engineering, debugging, sysadmin), checked by each task's verifier",
     tests: ['terminal-bench'],
   },
   {

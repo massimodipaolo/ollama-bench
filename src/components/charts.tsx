@@ -77,6 +77,7 @@ function ScatterTip({
         {yLabel} <span className="text-fg tabular">{p.score.toFixed(1)}</span> · {xLabel}{' '}
         <span className="text-fg tabular">{p.x.toLocaleString()}</span>
       </div>
+      {p.detail && <div className="text-muted">{p.detail}</div>}
     </div>
   );
 }
@@ -87,6 +88,8 @@ export interface SpeedPoint {
   x: number;
   /** 0–10: judge average, or the automatic score for tests without judges */
   score: number;
+  /** extra tooltip line, e.g. which capabilities an overall score covers */
+  detail?: string;
 }
 
 /** Speed vs quality: one dot per model (single series → no legend; names as direct labels). */

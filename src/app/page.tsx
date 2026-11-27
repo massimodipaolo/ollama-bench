@@ -11,6 +11,7 @@ import { CapabilityTable, OverviewTable } from '@/components/capability-table';
 import { CAPABILITIES, getCapability } from '@/config/capabilities';
 import { LANGUAGES } from '@/config/languages';
 import { StatusPill } from '@/components/status-pill';
+import { SpeedQualityScatter, type SpeedPoint } from '@/components/charts';
 import { inTier, parseTier, type Tier } from '@/lib/tiers';
 
 type SP = PageProps<'/'>['searchParams'];
@@ -137,14 +138,80 @@ async function CapabilityView({
   );
 }
 
+const tok1 = (x: number) => Math.round(x * 10) / 10;
+
 async function BoardFor({ cap, lang, tier }: { cap: string; lang: string; tier: Tier }) {
   const board = await capabilityBoard(cap, lang, tier);
-  return board ? <CapabilityTable board={board} /> : null;
+  if (!board) return null;
+  const ranked = board.rows.filter((r) => r.ranked && r.score != null);
+  const points: SpeedPoint[] = ranked
+    .filter((r) => r.avgTokPerSec != null)
+    .map((r) => ({ model: r.model, x: tok1(r.avgTokPerSec!), score: r.score! }));
+  return (
+    <>
+      <CapabilityTable board={board} />
+      <SpeedVsQuality
+        points={points}
+        withoutTok={ranked.length - points.length}
+        yLabel={`${board.capability.label} score`}
+        scope={`Ranked models: the ${board.capability.label.toLowerCase()} score above against their mean tokens/s on the same results`}
+      />
+    </>
+  );
 }
 
 async function OverviewFor({ lang, tier, link }: { lang: string; tier: Tier; link: (p: Record<string, string | undefined>) => string }) {
   const rows = await capabilityOverview(lang, tier);
-  return <OverviewTable rows={rows} capHref={(id) => link({ cap: id })} />;
+  const ranked = rows.filter((r) => !r.baseline && r.overall != null);
+  const points: SpeedPoint[] = ranked
+    .filter((r) => r.avgTokPerSec != null)
+    .map((r) => ({
+      model: r.model,
+      x: tok1(r.avgTokPerSec!),
+      score: r.overall!,
+      detail: `Mean of ${r.overallOf.length} ranked ${r.overallOf.length === 1 ? 'capability' : 'capabilities'}: ${r.overallOf.join(', ')}`,
+    }));
+  return (
+    <>
+      <OverviewTable rows={rows} capHref={(id) => link({ cap: id })} />
+      <SpeedVsQuality
+        points={points}
+        withoutTok={ranked.length - points.length}
+        yLabel="Overall score"
+        scope="Models with at least one ranked capability: the mean of their ranked capability scores against their mean tokens/s (each test once)"
+      />
+    </>
+  );
+}
+
+/** Only where tokens/s applies: models without a throughput figure (embedding, reranking) are left out and counted. */
+function SpeedVsQuality({
+  points,
+  withoutTok,
+  yLabel,
+  scope,
+}: {
+  points: SpeedPoint[];
+  withoutTok: number;
+  yLabel: string;
+  scope: string;
+}) {
+  if (!points.length && !withoutTok) return null;
+  return (
+    <div className="border-t border-line p-4">
+      <h3 className="font-semibold">Speed vs quality</h3>
+      <p className="mb-3 text-xs text-muted">
+        {scope}. Up is better; right is faster.
+        {withoutTok > 0 &&
+          ` Not shown: ${withoutTok} ranked ${withoutTok === 1 ? 'model' : 'models'} with no tokens/s (embedding and reranking models don't generate text).`}
+      </p>
+      {points.length ? (
+        <SpeedQualityScatter points={points} xLabel="tokens/s" yLabel={yLabel} />
+      ) : (
+        <p className="text-xs text-muted">Tokens/s doesn&apos;t apply to these models.</p>
+      )}
+    </div>
+  );
 }
 
 function TestView({ tests, tier }: { tests: TestSummary[]; tier: Tier }) {
