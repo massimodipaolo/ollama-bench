@@ -23,9 +23,10 @@ const HELP = `Usage: pnpm bench [options]
   --url <url>            app URL (default $BENCH_URL or http://localhost:3000)
   --tests <ids>          comma-separated test ids (default: all, except hours-long ones like terminal-bench,
                          which run only when named: --tests terminal-bench)
-  --capabilities <ids>   the tests of these capabilities (${CAPABILITIES.map((c) => c.id).join(', ')}), as listed in
-                         src/config/capabilities.ts; combines with --tests. A capability that lists an hours-long
-                         test includes it (coding → terminal-bench)
+  --capabilities <ids>   the tests of these capabilities, as the app at --url lists them (an older build that doesn't:
+                         this checkout's src/config/capabilities.ts, whose ids are ${CAPABILITIES.map((c) => c.id).join(', ')});
+                         combines with --tests. A capability that lists an hours-long test includes it
+                         (coding → terminal-bench)
   --models <list>        comma-separated model names or /regex/ (default: every compatible model)
   --exclude <list>       models to leave out (names or /regex/)
   --tier <t>             model size: small (<10B) | medium (10-50B) | large (>50B) | all (default)
@@ -260,6 +261,11 @@ async function waitForSession(id: string, onEvent: (e: { type: string; [k: strin
 }
 
 async function main() {
+  // a flag given but empty (e.g. --capabilities "$CAPS" with CAPS unset) must not fall back to the whole suite;
+  // checked before any request, so it's reported even when the app is down
+  for (const flag of ['tests', 'capabilities'] as const)
+    if (a[flag] !== undefined && !list(a[flag]).length) throw new Error(`--${flag} is empty: name at least one, or leave the flag out`);
+
   const [{ tests: allTests, capabilities: appCaps, judges: configuredJudges, sdk }, { models: allModels, host }] = await Promise.all([
     api<{
       tests: TestSummary[];
@@ -269,10 +275,6 @@ async function main() {
     }>('/api/tests'),
     api<{ models: ModelInfo[]; host: string }>('/api/models'),
   ]);
-
-  // a flag given but empty (e.g. --capabilities "$CAPS" with CAPS unset) must not fall back to the whole suite
-  for (const flag of ['tests', 'capabilities'] as const)
-    if (a[flag] !== undefined && !list(a[flag]).length) throw new Error(`--${flag} is empty: name at least one, or leave the flag out`);
 
   const testIds = list(a.tests);
   const unknown = testIds.filter((id) => !allTests.some((t) => t.id === id));
@@ -288,11 +290,17 @@ async function main() {
   const missing = capTests.filter((id) => !allTests.some((t) => t.id === id));
   if (missing.length) console.warn(`Not in this app's suite, skipped: ${missing.join(', ')}`);
   const wanted = new Set([...testIds, ...capTests]);
-  // long agentic benchmarks (cliOnly) never ride along with "all tests": name them in --tests or via their capability
-  const tests = wanted.size ? allTests.filter((t) => wanted.has(t.id)) : allTests.filter((t) => !t.cliOnly);
+  // with --tests or --capabilities, exactly what they name (never "everything", even when that comes to nothing).
+  // Without: all tests, except long agentic benchmarks (cliOnly), which run only when named or via their capability
+  const named = a.tests !== undefined || a.capabilities !== undefined;
+  const tests = named ? allTests.filter((t) => wanted.has(t.id)) : allTests.filter((t) => !t.cliOnly);
+  if (named && !tests.length)
+    throw new Error(
+      `Nothing to run: --capabilities ${capIds.join(', ')} ${capTests.length ? `lists only tests this app doesn't have (${missing.join(', ')})` : 'lists no tests'}`,
+    );
   if (capIds.length) {
     const long = tests.filter((t) => t.cliOnly && !testIds.includes(t.id)).map((t) => t.id);
-    console.log(`Capabilities ${capIds.join(', ')} → ${capTests.filter((id) => !missing.includes(id)).join(', ')}`);
+    console.log(`Capabilities ${capIds.join(', ')} → ${capTests.filter((id) => !missing.includes(id)).join(', ') || '(none in this app)'}`);
     if (long.length) console.log(`  includes hours-long ${long.join(', ')} (leave its capability out to skip it)`);
   }
   const include = a.models ? matcher(list(a.models)) : () => true;
