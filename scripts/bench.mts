@@ -23,9 +23,9 @@ const HELP = `Usage: pnpm bench [options]
   --url <url>            app URL (default $BENCH_URL or http://localhost:3000)
   --tests <ids>          comma-separated test ids (default: all, except hours-long ones like terminal-bench,
                          which run only when named: --tests terminal-bench)
-  --capabilities <ids>   the tests of these capabilities, as the app at --url lists them (an older build that doesn't:
-                         this checkout's src/config/capabilities.ts, whose ids are ${CAPABILITIES.map((c) => c.id).join(', ')});
-                         combines with --tests. A capability that lists an hours-long test includes it
+  --capabilities <ids>   the tests of these capabilities (e.g. vision,tools), as the app at --url lists them (an older
+                         build that doesn't: this checkout's src/config/capabilities.ts); an unknown id lists the
+                         available ones. Combines with --tests. A capability that lists an hours-long test includes it
                          (coding → terminal-bench)
   --models <list>        comma-separated model names or /regex/ (default: every compatible model)
   --exclude <list>       models to leave out (names or /regex/)
@@ -193,6 +193,11 @@ if (NUM_CTX !== undefined && !(Number.isInteger(NUM_CTX) && NUM_CTX > 0)) {
   console.error(`--num-ctx must be a positive integer (got ${a['num-ctx']})`);
   process.exit(1);
 }
+const MAX_SESSIONS = a['max-sessions'] !== undefined ? Number(a['max-sessions']) : Infinity;
+if (MAX_SESSIONS !== Infinity && !(Number.isInteger(MAX_SESSIONS) && MAX_SESSIONS > 0)) {
+  console.error(`--max-sessions must be a positive integer (got ${a['max-sessions'] || '""'})`);
+  process.exit(1);
+}
 /** Same rule as the server (registry sessionVariant): a non-default *requested* value is labelled (the server caps it). */
 function ctxVariant(t: TestSummary): string {
   return NUM_CTX !== undefined && NUM_CTX !== (t.numCtx ?? 8192) ? `num_ctx=${NUM_CTX}` : '';
@@ -261,9 +266,9 @@ async function waitForSession(id: string, onEvent: (e: { type: string; [k: strin
 }
 
 async function main() {
-  // a flag given but empty (e.g. --capabilities "$CAPS" with CAPS unset) must not fall back to the whole suite;
-  // checked before any request, so it's reported even when the app is down
-  for (const flag of ['tests', 'capabilities'] as const)
+  // a list flag given but empty (e.g. --capabilities "$CAPS" with CAPS unset) must not mean its default: every test,
+  // model, language or (paid) judge. Checked before any request, so it's reported even when the app is down
+  for (const flag of ['tests', 'capabilities', 'models', 'exclude', 'lang', 'judges'] as const)
     if (a[flag] !== undefined && !list(a[flag]).length) throw new Error(`--${flag} is empty: name at least one, or leave the flag out`);
 
   const [{ tests: allTests, capabilities: appCaps, judges: configuredJudges, sdk }, { models: allModels, host }] = await Promise.all([
@@ -309,6 +314,9 @@ async function main() {
   const tier = parseTier(a.tier);
   const models = allModels.filter((m) => include(m.name) && !exclude(m.name) && inTier(m.parameterSize, tier));
   const langs = list(a.lang);
+  const knownLangs = [...new Set(allTests.flatMap((t) => t.languages))];
+  const unknownLangs = langs.filter((l) => !knownLangs.includes(l));
+  if (unknownLangs.length) throw new Error(`Unknown language(s): ${unknownLangs.join(', ')}. Available: ${knownLangs.join(', ')}`);
   const subset = a.subset === 'full' ? 'full' : 'quick';
   const judges = a.judges === 'none' ? [] : a.judges ? list(a.judges) : configuredJudges.map((j) => j.id);
   const history = a['skip-existing'] ? await api<RunRow[]>('/api/runs') : [];
@@ -348,8 +356,7 @@ async function main() {
       }
     }
   }
-  const max = a['max-sessions'] ? Number(a['max-sessions']) : Infinity;
-  const plan = jobs.slice(0, max);
+  const plan = jobs.slice(0, MAX_SESSIONS);
 
   console.log(`Ollama host ${host} · app ${BASE}`);
   console.log(
