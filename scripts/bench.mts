@@ -44,7 +44,11 @@ const HELP = `Usage: pnpm bench [options]
   --max-sessions <n>     stop after n sessions
   --report <file>        report path (default .data/reports/bench-<timestamp>.md, plus .json)
   --dry-run              print the plan and exit
-  -h, --help`;
+  -h, --help
+
+  A flag given with an empty or invalid value (unknown test, capability, language, judge or option; --tier,
+  --subset, --num-ctx or --max-sessions out of range) is an error, never its default. So is a plan that comes out
+  empty, unless --skip-existing found everything already done.`;
 
 const { values: a } = parseArgs({
   options: {
@@ -167,8 +171,19 @@ const eligible = (t: TestSummary, caps: string[]) =>
   t.requires.every((c) => caps.includes(c)) && (!t.requiresAny.length || t.requiresAny.some((c) => caps.includes(c)));
 
 /** Option combinations to run for a test: defaults + --option overrides, or every combination (--all-variants). */
+/** --option key=value pairs (split on the first '=': a value may contain one); checked against the tests in main() */
+const overrides: Record<string, string> = Object.fromEntries(
+  (a.option ?? []).map((kv) => {
+    const i = kv.indexOf('=');
+    if (i < 1) {
+      console.error(`--option must be key=value (got ${kv || '""'})`);
+      process.exit(1);
+    }
+    return [kv.slice(0, i), kv.slice(i + 1)];
+  }),
+);
+
 function variants(t: TestSummary): Record<string, string>[] {
-  const overrides = Object.fromEntries((a.option ?? []).map((kv) => kv.split('=') as [string, string]));
   if (!a['all-variants'] || !t.options.length) {
     const v: Record<string, string> = {};
     for (const o of t.options) {
@@ -188,16 +203,22 @@ const variantLabel = (v: Record<string, string>) =>
     .map(([k, x]) => `${k}=${x}`)
     .join(' · ');
 
-const NUM_CTX = a['num-ctx'] ? Number(a['num-ctx']) : undefined;
-if (NUM_CTX !== undefined && !(Number.isInteger(NUM_CTX) && NUM_CTX > 0)) {
-  console.error(`--num-ctx must be a positive integer (got ${a['num-ctx']})`);
+// a value given but empty or mistyped (e.g. --tier "$TIER" with TIER unset) is an error, never the default
+function usage(msg: string): never {
+  console.error(msg);
   process.exit(1);
 }
-const MAX_SESSIONS = a['max-sessions'] !== undefined ? Number(a['max-sessions']) : Infinity;
-if (MAX_SESSIONS !== Infinity && !(Number.isInteger(MAX_SESSIONS) && MAX_SESSIONS > 0)) {
-  console.error(`--max-sessions must be a positive integer (got ${a['max-sessions'] || '""'})`);
-  process.exit(1);
-}
+const positiveInt = (flag: 'num-ctx' | 'max-sessions'): number | undefined => {
+  const raw = a[flag];
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!(Number.isInteger(n) && n > 0)) usage(`--${flag} must be a positive integer (got ${raw || '""'})`);
+  return n;
+};
+const NUM_CTX = positiveInt('num-ctx');
+const MAX_SESSIONS = positiveInt('max-sessions') ?? Infinity;
+if (parseTier(a.tier) !== a.tier) usage(`--tier must be one of: all, small, medium, large (got ${a.tier || '""'})`);
+if (a.subset !== 'quick' && a.subset !== 'full') usage(`--subset must be quick or full (got ${a.subset || '""'})`);
 /** Same rule as the server (registry sessionVariant): a non-default *requested* value is labelled (the server caps it). */
 function ctxVariant(t: TestSummary): string {
   return NUM_CTX !== undefined && NUM_CTX !== (t.numCtx ?? 8192) ? `num_ctx=${NUM_CTX}` : '';
@@ -310,15 +331,37 @@ async function main() {
   }
   const include = a.models ? matcher(list(a.models)) : () => true;
   const exclude = a.exclude ? matcher(list(a.exclude)) : () => false;
-  if (a.tier && parseTier(a.tier) !== a.tier) throw new Error(`--tier must be one of: all, small, medium, large`);
   const tier = parseTier(a.tier);
   const models = allModels.filter((m) => include(m.name) && !exclude(m.name) && inTier(m.parameterSize, tier));
+
+  // languages: checked against the selected tests, not the whole suite
   const langs = list(a.lang);
-  const knownLangs = [...new Set(allTests.flatMap((t) => t.languages))];
+  const knownLangs = [...new Set(tests.flatMap((t) => t.languages))];
   const unknownLangs = langs.filter((l) => !knownLangs.includes(l));
-  if (unknownLangs.length) throw new Error(`Unknown language(s): ${unknownLangs.join(', ')}. Available: ${knownLangs.join(', ')}`);
+  if (unknownLangs.length)
+    throw new Error(`No selected test has language(s): ${unknownLangs.join(', ')}. The selected tests have: ${knownLangs.join(', ')}`);
+  const noLang = tests.filter((t) => langs.length && !t.languages.some((l) => langs.includes(l))).map((t) => t.id);
+  if (noLang.length) console.warn(`Not in ${langs.join(', ')}, skipped: ${noLang.join(', ')}`);
+
+  // --option: each key must be an option of a selected test, each value one of its choices
+  for (const [key, value] of Object.entries(overrides)) {
+    const opts = tests.flatMap((t) => t.options.filter((o) => o.id === key));
+    if (!opts.length) throw new Error(`--option ${key}: no selected test has this option`);
+    if (!opts.some((o) => o.choices.some((c) => c.value === value)))
+      throw new Error(
+        `--option ${key}=${value}: not a valid value. Choices: ${[...new Set(opts.flatMap((o) => o.choices.map((c) => c.value)))].join(', ')}`,
+      );
+  }
+
   const subset = a.subset === 'full' ? 'full' : 'quick';
-  const judges = a.judges === 'none' ? [] : a.judges ? list(a.judges) : configuredJudges.map((j) => j.id);
+  const judgeIds = list(a.judges);
+  if (judgeIds.includes('none') && judgeIds.length > 1) throw new Error(`--judges none can't be combined with other judges`);
+  const judges = a.judges === undefined ? configuredJudges.map((j) => j.id) : judgeIds.filter((id) => id !== 'none');
+  const unknownJudges = judges.filter((id) => !configuredJudges.some((j) => j.id === id));
+  if (unknownJudges.length)
+    throw new Error(
+      `Unknown or unconfigured judge(s): ${unknownJudges.join(', ')}. Configured: ${configuredJudges.map((j) => j.id).join(', ') || 'none'}`,
+    );
   const history = a['skip-existing'] ? await api<RunRow[]>('/api/runs') : [];
 
   // plan: grouped by model so each model loads once and runs all its tests
@@ -372,7 +415,16 @@ async function main() {
     console.log(
       `  ${j.model.name.padEnd(36)} ${j.test.id.padEnd(18)} ${j.lang}  ${String(j.cases).padStart(3)} cases${j.variant ? `  ${j.variant}` : ''}${j.includeBaselines ? `  (+ ${j.test.baselines.join(', ')})` : ''}`,
     );
-  if (a['dry-run'] || !plan.length) return;
+  if (a['dry-run']) return;
+  if (!plan.length) {
+    // everything already done is success; a plan the filters emptied is a mistake, not a run
+    if (skipped.length) return console.log('Nothing left to run.');
+    throw new Error(
+      models.length
+        ? `Nothing to run: none of the ${models.length} selected models can take these tests in these languages`
+        : 'Nothing to run: no installed model matches --models / --exclude / --tier',
+    );
+  }
 
   // run
   const started = Date.now();

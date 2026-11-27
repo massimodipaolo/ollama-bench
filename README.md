@@ -238,8 +238,14 @@ pnpm bench --help
 `--capabilities` takes the capability → tests mapping (`src/config/capabilities.ts`) from the app it talks to
 (`/api/tests`), so it matches that build, and a test added to a capability there is included without touching the
 CLI. An older build that doesn't report it falls back to the local checkout's config, with a warning. It combines
-with `--tests`; an empty `--tests` or `--capabilities` is an error, not "everything". Hours-long tests are included
-when their capability is named (`coding` → Terminal-Bench); a plain `pnpm bench` still skips them.
+with `--tests`. Hours-long tests are included when their capability is named (`coding` → Terminal-Bench); a plain
+`pnpm bench` still skips them.
+
+A flag given with an empty or invalid value is an error, never its default, so `--judges "$JUDGES"` with the
+variable unset can't quietly use every paid judge. That covers unknown tests, capabilities, judges and `--option`
+keys or values, a language none of the selected tests has, and `--tier`, `--subset`, `--num-ctx` or
+`--max-sessions` out of range. A plan that comes out empty is an error too, unless `--skip-existing` found
+everything already done.
 
 - It talks to the app through its API (`--url`, default `$BENCH_URL` or `http://localhost:3000`). Sessions share the
   app's single-GPU lock, so batch and browser runs never overlap, and every session can be watched live in the UI.
