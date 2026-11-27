@@ -24,8 +24,12 @@ function TestCell({ cell }: { cell: CapabilityCell | undefined }) {
         href={`/sessions/${cell.sessionId}`}
         className="block rounded px-2 py-1 tabular hover:outline hover:outline-1 hover:outline-accent"
         style={heat(cell.score)}
+        title={cell.variant ? `Best run: ${cell.variant}` : undefined}
       >
         {fmtNum(cell.score)}
+        {cell.variant && (
+          <sup className="ml-0.5 text-[9px] font-normal opacity-80">{cell.numCtx ? `${Math.round(cell.numCtx / 1024)}k` : '*'}</sup>
+        )}
       </Link>
     </td>
   );

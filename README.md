@@ -72,8 +72,9 @@ The dashboard and the run form both have two views.
 **Capability leaderboard** (`/?view=capability&cap=vision&lang=en`):
 
 - A model's capability score is the mean of its scores on the capability's tests. Each test score is the one its
-  leaderboard shows (latest judged run, otherwise the automatic score), for the default test options and default
-  `num_ctx`, in the chosen language.
+  leaderboard shows (judge average, otherwise the automatic score): the model's **best** run in the chosen language,
+  over every variant and digest (same rule as the per-test tables). A non-default variant is marked in the cell: a
+  `32k`-style superscript for another `num_ctx`, `*` for other test options; hovering shows it.
 - Only results from each test's **current suite version** count. Older ones are shown struck out.
 - A model is **ranked** only with a current result on every test it can take, by its Ollama capabilities. An embedding
   model can't run RAG, and a chat model can't run the embeddings test. Tests that nobody has run yet (e.g. web search

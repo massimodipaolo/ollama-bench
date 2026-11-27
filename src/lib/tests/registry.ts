@@ -129,11 +129,15 @@ export function sessionVariant(
   testId: string,
   config: { extra?: Record<string, unknown>; numCtx?: number; numCtxRequested?: number },
 ): string {
-  const base = variantLabel(config.extra);
+  const ctx = customCtx(testId, config);
+  return [variantLabel(config.extra), ctx ? `num_ctx=${ctx}` : ''].filter(Boolean).join(' · ');
+}
+
+/** The num_ctx a session asked for when it isn't the test's default; null for a default run (see sessionVariant). */
+export function customCtx(testId: string, config: { numCtx?: number; numCtxRequested?: number }): number | null {
   const def = TESTS.find((t) => t.id === testId)?.numCtx ?? 8192;
   const requested = config.numCtxRequested ?? config.numCtx;
-  const ctx = requested && requested !== def ? `num_ctx=${requested}` : '';
-  return [base, ctx].filter(Boolean).join(' · ');
+  return requested && requested !== def ? requested : null;
 }
 
 /** Human-readable variant label, e.g. "mode=prompt" (empty when the test has no options). */

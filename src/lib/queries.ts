@@ -2,7 +2,7 @@ import 'server-only';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import type { Batch, CaseResult, Judgment, Model, Run, Session } from '@/db/schema';
-import { getTest, isEligible, isKnownTest, listTests, sessionVariant, TESTS } from '@/lib/tests/registry';
+import { customCtx, getTest, isEligible, isKnownTest, listTests, sessionVariant, TESTS } from '@/lib/tests/registry';
 import { CAPABILITIES, getCapability } from '@/config/capabilities';
 import { inTier, type Tier } from '@/lib/tiers';
 import { sdkLabel } from '@/lib/versions';
@@ -128,6 +128,8 @@ export interface LeaderboardRow {
   autoScore: number | null;
   avgTokPerSec: number | null;
   avgLatencyMs: number | null;
+  /** num_ctx when it isn't the test's default (the num_ctx part of `variant`) */
+  numCtx: number | null;
   /** set by bestPerModel: the model's other leaderboard rows (languages, variants, digests) folded into this one */
   others?: number;
 }
@@ -201,6 +203,7 @@ export function leaderboard(testId: string, lang?: string): LeaderboardRow[] {
       autoScore: run.autoScore,
       avgTokPerSec: run.avgTokPerSec,
       avgLatencyMs: run.avgLatencyMs,
+      numCtx: customCtx(session.testId, session.config),
     });
   }
   return [...byModel.values()].sort(
@@ -347,6 +350,10 @@ export interface CapabilityCell {
   stale: boolean;
   /** generation throughput of that run; null for tests that don't generate text (embeddings, reranking) */
   tokPerSec: number | null;
+  /** the run's variant when it isn't the default one (test options, num_ctx), e.g. "num_ctx=32768" */
+  variant: string | null;
+  /** num_ctx of that run when it isn't the test's default */
+  numCtx: number | null;
 }
 export interface CapabilityRow {
   model: string;
@@ -376,8 +383,8 @@ const mainScore = (r: Pick<LeaderboardRow, 'judgeAvg' | 'autoScore'>) => r.judge
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
 /**
- * One row per model name: for each of the capability's tests, the score its leaderboard shows (latest judged run,
- * judge average or else the automatic score) for the default test options and default num_ctx, in one language.
+ * One row per model name: for each of the capability's tests, the model's best result in one language (judge average,
+ * else the automatic score) over every variant and digest, as the dashboard's per-test tables (bestPerModel).
  * Only results from the test's current suite version count; older ones are shown as stale.
  * Ranking needs a current result on every test the model can take (by its Ollama capabilities: an embedding model
  * can't run RAG, a chat model can't run the embeddings test) among those anyone has run, so one strong result
@@ -392,19 +399,9 @@ export async function capabilityBoard(capabilityId: string, lang: string, tier: 
   const byModel = new Map<string, CapabilityRow & { tok: number[]; caps: string[] }>();
   const hasResults = new Set<string>();
   for (const t of tests) {
-    const defVariant = sessionVariant(t.id, { extra: Object.fromEntries(t.options.map((o) => [o.id, o.default])) });
-    // sessions recorded before a test had options carry no variant at all: they ran the defaults too
-    const rows = leaderboard(t.id, lang).filter((r) => r.variant === defVariant || r.variant === '');
-    // per model name: the most recent result (a re-pulled model shows its current digest)
-    // current-suite results win over newer-looking stale ones
-    const rank = (r: LeaderboardRow) => [Number(r.suiteVersion === t.suiteVersion), r.lastRunAt];
-    const better = (a: LeaderboardRow, b: LeaderboardRow) => {
-      const [x, y] = [rank(a), rank(b)];
-      return x[0] !== y[0] ? x[0] > y[0] : x[1] > y[1];
-    };
-    const latest = new Map<string, LeaderboardRow>();
-    for (const r of rows) if (!latest.has(r.model) || better(r, latest.get(r.model)!)) latest.set(r.model, r);
-    for (const r of latest.values()) {
+    // per model name: its best run in this language, in any variant (options, num_ctx) or digest; the cell names a
+    // non-default variant. Current-suite results win over stale ones, judged over unjudged (see bestPerModel).
+    for (const r of bestPerModel(leaderboard(t.id, lang), t.suiteVersion)) {
       const stale = r.suiteVersion !== t.suiteVersion;
       if (!stale) hasResults.add(t.id);
       if (!inTier(r.parameterSize, tier)) continue;
@@ -427,7 +424,15 @@ export async function capabilityBoard(capabilityId: string, lang: string, tier: 
         };
         byModel.set(r.model, row);
       }
-      row.cells[t.id] = { score: mainScore(r), sessionId: r.sessionId, lastRunAt: r.lastRunAt, stale, tokPerSec: r.avgTokPerSec };
+      row.cells[t.id] = {
+        score: mainScore(r),
+        sessionId: r.sessionId,
+        lastRunAt: r.lastRunAt,
+        stale,
+        tokPerSec: r.avgTokPerSec,
+        variant: r.variant || null,
+        numCtx: r.numCtx,
+      };
       if (!stale && r.avgTokPerSec != null) row.tok.push(r.avgTokPerSec);
     }
   }

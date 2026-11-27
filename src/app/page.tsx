@@ -128,9 +128,10 @@ async function CapabilityView({
           <p className="text-muted">Each capability&apos;s score per model. Click a column for its tests.</p>
         )}
         <p className="text-xs text-muted">
-          Score = mean of the model&apos;s current results on the capability&apos;s tests (default options, default num_ctx, this language).
-          Ranked only with a result on every test the model can take that has been run at all; partial rows are shown in brackets.
-          Struck-out cells come from an older version of a test and don&apos;t count.
+          Score = mean of the model&apos;s best current result on each of the capability&apos;s tests in this language, over every run (a
+          superscript marks a non-default variant: 32k for another num_ctx, * for other test options; hover for details). Ranked only with a
+          result on every test the model can take that has been run at all; partial rows are shown in brackets. Struck-out cells come from
+          an older version of a test and don&apos;t count.
         </p>
       </div>
       {def ? <BoardFor cap={def.id} lang={lang} tier={tier} /> : <OverviewFor lang={lang} tier={tier} link={link} />}
