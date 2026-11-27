@@ -1,7 +1,7 @@
 /**
  * Calibration experiment: does the Google judge's flat 7 on image cases depend on image format, size or the
  * position of the image in the message? Judges one stored, known-good answer N times per variant.
- *   pnpm tsx --conditions=react-server --env-file=.env scripts/judge-image-experiment.mts [reps] [variant-name-regex]
+ *   pnpm tsx --conditions=react-server --env-file=.env scripts/judge-image-experiment.mts [reps] [variant-name-filter]
  */
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -20,7 +20,7 @@ const sharpDir = path.join(process.cwd(), 'node_modules/.pnpm/sharp@0.35.5_@type
 const sharp = require(sharpDir) as (input: Buffer) => any;
 
 const REPS = Number(process.argv[2] ?? 4);
-const FILTER = process.argv[3] ? new RegExp(process.argv[3], 'i') : null;
+const FILTER = process.argv[3]?.toLowerCase() ?? null;
 type Variant = { attachments: FilePart[]; first?: boolean; google?: Record<string, unknown> };
 const CASES = ['infographic-steps', 'pdf-reading-order'];
 const db = getDb();
@@ -74,7 +74,7 @@ for (const caseId of CASES) {
   ];
   console.log(`\n${caseId} (case result ${good.cr.id}, ${att.map((a) => `${a.filename} ${a.mediaType}`).join(', ')})`);
   for (const [name, make] of variants) {
-    if (FILTER && !FILTER.test(name)) continue;
+    if (FILTER && !name.toLowerCase().includes(FILTER)) continue;
     const v = await make();
     const judge = v.google ? { ...google, providerOptions: { google: v.google } as never } : google;
     const scores = await Promise.all(

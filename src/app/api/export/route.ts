@@ -7,7 +7,8 @@ const JUDGES = ['openai', 'google', 'anthropic'];
 
 function csvCell(v: unknown): string {
   if (v == null) return '';
-  const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+  const raw = typeof v === 'object' ? JSON.stringify(v) : String(v);
+  const s = /^[\u0000-\u0020]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 const csv = (rows: unknown[][]) => rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';

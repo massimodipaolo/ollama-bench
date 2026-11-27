@@ -12,6 +12,10 @@ pnpm smoke   # checks Ollama + each judge with one tiny call
 pnpm dev     # http://localhost:3000
 ```
 
+The app is local-only: `pnpm dev` and `pnpm start` bind to loopback, and requests using non-local hostnames or
+cross-origin API writes are rejected. Do not expose the app through a LAN address or reverse proxy without adding
+authentication and CSRF protection for that deployment.
+
 `.env` (never committed):
 
 | Var | Purpose |
@@ -194,14 +198,17 @@ pnpm bench --tests terminal-bench --models qwen3.8:27b --judges none
 ```
 
 - **Agent:** our AI SDK loop with one `bash` tool that runs inside the task container (up to 80 steps, within the task's
-  own time limit). Command output is clipped to its start and end.
-- **Verifier (Harbor's protocol):** `tests/` copied to `/tests`, then `bash /tests/test.sh`. The reward comes from
+  own time limit). Command output is clipped to its start and end. Task containers have no network access and a 10 GB
+  writable-layer limit; Docker must support per-container storage quotas.
+- **Verifier (Harbor's protocol):** the task workspace is snapshotted into a fresh, network-isolated container;
+  `tests/` is copied to `/tests`, then `bash /tests/test.sh`. The reward comes from
   `/logs/verifier/reward.txt`, and the verifier also runs after an agent timeout. **Score = share of tasks with reward 1.**
 - **Hours per model** (task time limits sum to 42 hours for the full set), so it's started only from the CLI. A plain
   `pnpm bench` skips it, and the run form shows it as "CLI only". Results and transcripts appear in the app like any
   session. Images are pulled on first use (tens of GB for all 89).
 - **Not comparable 1:1 with the [leaderboard](https://www.tbench.ai/leaderboard/terminal-bench/2.1)**, which uses the
-  Terminus 2 agent (tmux) and 5 trials per task. Tasks have internet access, as upstream.
+  Terminus 2 agent (tmux) and 5 trials per task. Upstream tasks may use the internet; this harness disables networking
+  to keep model-generated commands isolated.
 
 ## Mermaid diagrams
 
