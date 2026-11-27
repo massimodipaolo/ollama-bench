@@ -18,7 +18,6 @@ export interface TbCase {
   memoryMb: number;
   agentTimeoutS: number;
   verifierTimeoutS: number;
-  allowInternet: boolean;
 }
 
 const str = (s: string, re: RegExp) => (s.match(re) ?? [])[1];
@@ -39,6 +38,5 @@ export function parseTaskToml(name: string, toml: string): Omit<TbCase, 'dir' | 
     memoryMb: Number(str(env, /^memory_mb\s*=\s*(\d+)/m) ?? 2048),
     agentTimeoutS: Number(str(section(toml, 'agent'), /^timeout_sec\s*=\s*([\d.]+)/m) ?? 900),
     verifierTimeoutS: Number(str(section(toml, 'verifier'), /^timeout_sec\s*=\s*([\d.]+)/m) ?? 900),
-    allowInternet: str(env, /^allow_internet\s*=\s*(\w+)/m) !== 'false',
   };
 }

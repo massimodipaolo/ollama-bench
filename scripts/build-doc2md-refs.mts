@@ -19,7 +19,15 @@ const OUT = 'fixtures/doc-to-markdown/reference';
 const only = process.argv.slice(2);
 const want = (k: string) => !only.length || only.includes(k);
 
-const cell = (s: string) => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+const cell = (s: string) =>
+  s
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 function gfmTable(header: string[], rows: string[][]): string {
   const w = header.length;
   const line = (cs: string[]) => `| ${Array.from({ length: w }, (_, i) => cell(cs[i] ?? '')).join(' | ')} |`;
@@ -109,11 +117,11 @@ if (want('docx')) {
   const decode = (s: string) =>
     s
       .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'");
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&');
   const tables: string[] = [];
   html = html.replace(/<table>([\s\S]*?)<\/table>/g, (_m, inner: string) => {
     const rows = [...inner.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((r) =>
@@ -130,7 +138,7 @@ if (want('docx')) {
           .join('<br>'),
       ),
     );
-    tables.push(gfmTable(rows[0], rows.slice(1)).replace(/\\\|/g, '\\|'));
+    tables.push(gfmTable(rows[0], rows.slice(1)));
     return `<p>@@TABLE${tables.length - 1}@@</p>`;
   });
   let first = true;
@@ -141,7 +149,7 @@ if (want('docx')) {
     return `<h3>${s}</h3>`;
   });
   const td = new TurndownService({ headingStyle: 'atx', bulletListMarker: '-', emDelimiter: '*' });
-  td.escape = (str: string) => str; // keep [1], *, _ literal (source text, not markup)
+  td.escape = (str: string) => str.replace(/</g, '&lt;').replace(/>/g, '&gt;'); // keep source Markdown literal, not HTML
   let md = td.turndown(html);
   md = md
     .replace(/@@TABLE(\d+)@@/g, (_m, i: string) => tables[Number(i)])
