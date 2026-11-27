@@ -45,6 +45,29 @@
       "runtimeArgs": ["bench", "--subset", "quick", "--lang", "en", "--judges", "openai", "--skip-existing"],
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      // Same production server, then the quick Terminal-Bench tasks (CLI only, so it must be named) with a 32k
+      // context. Its verifier gives the score; the judge setting has no effect on this test.
+      "name": "bench:terminal-bench",
+      "type": "node",
+      "request": "launch",
+      "preLaunchTask": "App: build + start (production)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "bench",
+        "--tests",
+        "terminal-bench",
+        "--subset",
+        "quick",
+        "--judges",
+        "none",
+        "--skip-existing",
+        "--num-ctx",
+        "32768"
+      ],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
     }
   ]
 }
