@@ -140,6 +140,10 @@ run_scores    run_id, auto_score, judge_openai, judge_google, judge_anthropic, j
     - Model memory (2026-11-27): models are unloaded as soon as no queued session needs them (`runner/residency.ts`;
       the CLI passes `keepLoaded` for its next same-model session; helper models via `TestDefinition.helperModels`).
       `/run` shows the host's loaded models with Unload. MoE tag from `/api/show` expert counts.
+    - **Polyglot removed** (2026-11-27): too expensive to run (6 toolchains, ~5 GB image, long sessions). Code, image
+      definition, manifest and `polyglot:verify` deleted; the docker helper moved to `src/lib/docker.ts`. Its 12 past
+      sessions stay in the database; `isKnownTest` leaves them out of lists, leaderboards and charts. Coding is now
+      Terminal-Bench only.
 13. Next candidates: MCP-Atlas (no-key servers), IFEval/IFBench, RULER; a real TEDS for OmniDocBench tables.
 
 ## Local rerankers in Ollama (tested 2026-11-26, Ollama 0.40.18)

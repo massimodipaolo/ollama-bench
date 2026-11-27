@@ -2,7 +2,7 @@ import 'server-only';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import type { Batch, CaseResult, Judgment, Model, Run, Session } from '@/db/schema';
-import { getTest, isEligible, listTests, sessionVariant } from '@/lib/tests/registry';
+import { getTest, isEligible, isKnownTest, listTests, sessionVariant, TESTS } from '@/lib/tests/registry';
 import { CAPABILITIES, getCapability } from '@/config/capabilities';
 import { inTier, type Tier } from '@/lib/tiers';
 import { sdkLabel } from '@/lib/versions';
@@ -66,8 +66,13 @@ export interface SessionListItem {
 
 export function recentSessions(limit = 20, testId?: string): SessionListItem[] {
   const db = getDb();
-  const q = db.select().from(schema.sessions);
-  const sessions = (testId ? q.where(eq(schema.sessions.testId, testId)) : q).orderBy(desc(schema.sessions.createdAt)).limit(limit).all();
+  const sessions = db
+    .select()
+    .from(schema.sessions)
+    .where(testId ? eq(schema.sessions.testId, testId) : inArray(schema.sessions.testId, TESTS.map((t) => t.id)))
+    .orderBy(desc(schema.sessions.createdAt))
+    .limit(limit)
+    .all();
   if (!sessions.length) return [];
   const runs = db
     .select({ run: schema.runs, model: schema.models })
@@ -212,7 +217,7 @@ export function runRows(filter: { testId?: string; model?: string; includeUnfini
     .all()
     .filter(
       (r) =>
-        (!filter.testId || r.session.testId === filter.testId) &&
+        (filter.testId ? r.session.testId === filter.testId : isKnownTest(r.session.testId)) &&
         (!filter.model || r.model.name === filter.model) &&
         (filter.includeUnfinished || r.run.status === 'done'),
     )

@@ -8,7 +8,6 @@ import { mcp } from './mcp';
 import { omnidocbench } from './omnidocbench';
 import { bfcl } from './bfcl';
 import { mmmuPro } from './mmmu-pro';
-import { polyglot } from './polyglot';
 import { terminalBench } from './terminal-bench';
 import { textGeneration } from './text-generation';
 import { structuredOutput } from './structured-output';
@@ -33,9 +32,16 @@ export const TESTS: TestDefinition<any>[] = [
   omnidocbench,
   bfcl,
   mmmuPro,
-  polyglot,
   terminalBench,
 ];
+
+/**
+ * Is this test still in the suite? Sessions of a removed test (e.g. Polyglot) stay in the database but are left
+ * out of lists, leaderboards and charts.
+ */
+export function isKnownTest(id: string): boolean {
+  return TESTS.some((t) => t.id === id);
+}
 
 export function getTest(id: string): TestDefinition<BaseCase> {
   const t = TESTS.find((x) => x.id === id);

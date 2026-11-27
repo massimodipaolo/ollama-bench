@@ -1,7 +1,7 @@
 import 'server-only';
 import { and, eq } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
-import { getTest } from '@/lib/tests/registry';
+import { getTest, isKnownTest } from '@/lib/tests/registry';
 import { getLanguage } from '@/config/languages';
 import type { CaseOutput, JudgeMaterial } from '@/lib/tests/types';
 
@@ -17,6 +17,7 @@ export async function promptMaterial(sessionId: string, caseId: string): Promise
   const db = getDb();
   const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get();
   if (!session) return { ok: false, status: 404, error: 'Session not found' };
+  if (!isKnownTest(session.testId)) return { ok: false, status: 404, error: `Test ${session.testId} is no longer in the suite` };
   const test = getTest(session.testId);
   const lang = getLanguage(session.lang);
   const c = test.loadCases(lang.code).find((x) => x.id === caseId);

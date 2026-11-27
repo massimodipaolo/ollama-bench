@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // downloaded datasets (third-party code, e.g. Terminal-Bench task files)
+    ".data/**",
   ]),
 ]);
 

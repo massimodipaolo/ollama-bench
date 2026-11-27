@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { docker } from '../src/lib/tests/polyglot/sandbox';
+import { docker } from '../src/lib/docker';
 import type { TbCase } from '../src/lib/tests/terminal-bench/config';
 import { ensureImage, runVerifier, startTaskContainer, stopTaskContainer } from '../src/lib/tests/terminal-bench/sandbox';
 

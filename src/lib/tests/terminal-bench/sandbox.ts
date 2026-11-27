@@ -6,7 +6,7 @@
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { docker } from '../polyglot/sandbox';
+import { docker } from '@/lib/docker';
 import type { TbCase } from './config';
 
 export async function ensureImage(image: string, onProgress?: (t: string) => void) {

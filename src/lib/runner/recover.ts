@@ -1,6 +1,6 @@
 import { and, inArray, isNull, lt, or } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
-import { docker } from '@/lib/tests/polyglot/sandbox';
+import { docker } from '@/lib/docker';
 import { LABEL, STALE_MS, serverInstance } from './instance';
 
 /**
@@ -43,7 +43,7 @@ export async function recoverAbandoned(): Promise<{ sessions: number; containers
       .run();
   }
 
-  // containers of dead servers (Polyglot sandboxes, Terminal-Bench task containers)
+  // containers of dead servers (Terminal-Bench task containers, DuckDuckGo MCP servers)
   let containers = 0;
   for (const id of dead) {
     const ps = await docker(['ps', '-aq', '--filter', `label=${LABEL}=${id}`], { timeoutMs: 30_000 });

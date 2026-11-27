@@ -14,7 +14,6 @@
     "rejudge": "tsx --conditions=react-server --env-file=.env scripts/rejudge.mts",
     "bench": "tsx scripts/bench.mts",
     "datasets:fetch": "tsx scripts/datasets/fetch.mts",
-    "polyglot:verify": "tsx scripts/polyglot-verify.mts",
     "tb:verify": "tsx scripts/tb-verify.mts"
   },
   "dependencies": {

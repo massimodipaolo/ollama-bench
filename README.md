@@ -156,32 +156,11 @@ models often use) and ` ```mermaid ` diagrams. Dollar amounts such as `$5` stay 
 raw HTML is ignored, images are shown as links rather than loaded, KaTeX runs with `trust: false`, and Mermaid runs in
 strict mode. Scores always come from the raw text.
 
-## Coding tests (Polyglot, Terminal-Bench)
+## Coding test (Terminal-Bench)
 
-Both need **Docker** on the machine that runs the app (here: Docker Desktop, x86_64). Models stay on the Ollama host,
-and code only ever runs in containers.
-
-**Polyglot** (`polyglot`, Coding capability): [Aider's polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark),
-225 hard Exercism exercises in C++, Go, Java, JavaScript, Python and Rust (quick: one per language).
-
-```bash
-pnpm datasets:fetch polyglot     # repo at the pinned commit + builds the sandbox image (~5 GB, a few minutes)
-pnpm polyglot:verify             # optional: every reference solution must pass (225/225, ~11 min)
-```
-
-- **Protocol (as Aider's harness):** the prompt is the exercise instructions plus Aider's addendum. The model sees and
-  edits only the solution files. The unit tests stay hidden, run with Aider's per-language commands and a 3-minute
-  timeout. On failure, the model gets the test output and one more try. **Score = pass rate after 2 tries**
-  (`pass_rate_2`); the session shows each try with its test output.
-- **Difference from Aider:** answers use a whole-file format (the model returns each changed file in full), not Aider's
-  diff formats. The parser accepts the path on the line above the code block or as the block's first line (some
-  models do the latter). Test output for the retry is capped at 12k characters (Aider passes it uncapped).
-  JUnit/Gradle/JDK stack frames are dropped first, so failing tests and their messages survive the cap.
-- **Sandbox:** image `ollama-bench-polyglot:<hash>` (`docker/polyglot/Dockerfile`). Tests run with **no network**,
-  6 GB / 4 CPUs / 1,024 processes, no host mounts. Gradle, Cargo and npm dependencies are baked in at build time.
-- **Fixes found by `polyglot:verify`:** Jest pinned to 29.7 (Aider installs it unpinned, and Jest 30 removed
-  `toThrowError`, failing correct JavaScript answers). C++ exercises must sit in a folder with the exercise's own name.
-  Rust reference solutions with extra crates use `.meta/Cargo-example.toml`; models still get the plain `Cargo.toml`.
+Needs **Docker** on the machine that runs the app (here: Docker Desktop, x86_64). Models stay on the Ollama host,
+and code only ever runs in containers. (A Polyglot test, Aider's 225 Exercism exercises, was tried and removed as too
+expensive to run; its past sessions stay in the database but no longer show in lists or charts.)
 
 **Terminal-Bench 2.1** (`terminal-bench`, CLI only): [89 agentic tasks](https://github.com/harbor-framework/terminal-bench-2-1)
 (software engineering, debugging, security, data, sysadmin…) in each task's own container. Quick: the 4 easy tasks plus

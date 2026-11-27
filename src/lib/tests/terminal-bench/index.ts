@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { TestDefinition } from '../types';
 import { datasetCases, datasetLanguages, datasetPath } from '../datasets';
 import { GenerationError, runStream } from '../generate';
-import { docker } from '../polyglot/sandbox';
+import { docker } from '@/lib/docker';
 import type { TbCase } from './config';
 import { ensureImage, runVerifier, startTaskContainer, stopTaskContainer } from './sandbox';
 import { containerLabel } from '@/lib/runner/instance';

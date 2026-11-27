@@ -33,7 +33,7 @@ export const CAPABILITIES: CapabilityDef[] = [
     id: 'coding',
     label: 'Coding',
     description: 'Code that passes unit tests (six languages) and agentic terminal tasks',
-    tests: ['polyglot', 'terminal-bench'],
+    tests: ['terminal-bench'],
   },
   {
     id: 'retrieval',

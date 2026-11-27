@@ -10,7 +10,7 @@ import type { CheckResult } from '@/db/schema';
 import { readCases } from '../fixtures';
 import { runStream, toCaseOutput, type ToolTraceEntry } from '../generate';
 import { runCheck, type CheckSpec } from '../checks';
-import { docker } from '../polyglot/sandbox';
+import { docker } from '@/lib/docker';
 import { containerLabel } from '@/lib/runner/instance';
 
 /**
