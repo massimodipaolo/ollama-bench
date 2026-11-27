@@ -1,0 +1,28 @@
+#!/bin/sh
+# Runs before every commit; any failure blocks it. Enabled by `pnpm install` (the "prepare" script sets
+# core.hooksPath to .githooks). Skip once with `git commit --no-verify`; the gitleaks GitHub Action still
+# checks every push and pull request.
+set -e
+
+# 1. secrets: only what is staged, values redacted in the output
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks is not installed, so staged changes can't be checked for secrets." >&2
+  echo "  Install it (https://github.com/gitleaks/gitleaks#installing), or commit with --no-verify." >&2
+  exit 1
+fi
+if ! gitleaks git --pre-commit --staged --redact --no-banner --log-level warn --verbose; then
+  echo "pre-commit: gitleaks found a secret in the staged changes (above). Remove it from the commit:" >&2
+  echo "  move it to .env (git-ignored), or, if it isn't a secret, add its fingerprint to .gitleaksignore." >&2
+  exit 1
+fi
+
+# 2. lint and format the staged files (their working-tree content), same rules as `pnpm lint`
+staged() { git diff --cached --name-only --diff-filter=ACMR -z | grep -z -E "$1" || true; }
+
+if [ -n "$(staged '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|css)$' | tr -d '\0')" ]; then
+  staged '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|css)$' | xargs -0 pnpm exec prettier --check --log-level warn ||
+    { echo "pre-commit: run 'pnpm exec prettier --write <files>' and stage the result." >&2; exit 1; }
+fi
+if [ -n "$(staged '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$' | tr -d '\0')" ]; then
+  staged '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$' | xargs -0 pnpm exec eslint --no-warn-ignored --max-warnings 0
+fi

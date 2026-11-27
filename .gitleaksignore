@@ -1,0 +1,4 @@
+# Findings gitleaks may skip: false positives only, never a real secret (a real one belongs in .env, and a
+# leaked one must be rotated). One fingerprint per line, as gitleaks prints it in its report, e.g.:
+#   path/to/file.ts:generic-api-key:12             (a staged or working-tree finding)
+#   <commit sha>:path/to/file.ts:generic-api-key:12 (a finding in history)

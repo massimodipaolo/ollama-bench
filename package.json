@@ -14,7 +14,9 @@
     "rejudge": "tsx --conditions=react-server --env-file=.env scripts/rejudge.mts",
     "bench": "tsx scripts/bench.mts",
     "datasets:fetch": "tsx scripts/datasets/fetch.mts",
-    "tb:verify": "tsx scripts/tb-verify.mts"
+    "tb:verify": "tsx scripts/tb-verify.mts",
+    "security:codeql": "tsx scripts/codeql.mts",
+    "prepare": "git config core.hooksPath .githooks || echo prepare: not a git checkout, hooks not installed"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.110",

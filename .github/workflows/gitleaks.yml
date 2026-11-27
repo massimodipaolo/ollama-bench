@@ -1,0 +1,27 @@
+# Secret scan of every push and pull request: the server-side twin of .githooks/pre-commit, which a local
+# `git commit --no-verify` can skip. Free for personal-account repositories (organisations need GITLEAKS_LICENSE).
+name: gitleaks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the action scans the commits of the push or pull request
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1 # same as local; bump together
+          GITLEAKS_ENABLE_COMMENTS: false # the job summary and failed check are enough; no write permission needed

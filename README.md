@@ -27,6 +27,20 @@ pnpm dev     # http://localhost:3000
 A judge without a key and a model is skipped. The DB lives at `~/.ollama-benchmark/bench.db` (override with `BENCH_DB_PATH`), outside the project so the dev server's file watcher never sees its writes. Migrations in `drizzle/` are applied
 automatically when the DB opens.
 
+### Secrets and security checks
+
+- **Pre-commit hook** (`.githooks/pre-commit`, turned on by `pnpm install`): blocks a commit when
+  [gitleaks](https://github.com/gitleaks/gitleaks#installing) finds a secret in the staged changes (shown redacted),
+  or when the staged files fail Prettier or ESLint. It needs gitleaks on the PATH. `git commit --no-verify` skips
+  it once.
+- **False positives**: add the fingerprint gitleaks prints to `.gitleaksignore`. A real secret belongs in `.env`; if
+  one was committed, rotate it, because removing it from a later commit doesn't remove it from history.
+- **GitHub**: the `gitleaks` workflow scans every push and pull request, so a skipped hook is still caught. CodeQL
+  (GitHub's default setup) checks every pull request.
+- **Local CodeQL scan**: `pnpm security:codeql` runs the JavaScript/TypeScript security-extended queries and lists
+  the findings (report in `.data/codeql/results.sarif`). It takes a few minutes, too long for a hook. It finds the
+  CLI through `$CODEQL`, the PATH or `%LOCALAPPDATA%\codeql`, and downloads the query packs on first use.
+
 ## How a run works
 
 1. Choose a test, a language and 1–2 models. The list only shows models whose Ollama capabilities match the test.
