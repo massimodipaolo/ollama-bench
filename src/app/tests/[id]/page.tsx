@@ -32,15 +32,19 @@ async function TestView({ params, searchParams }: Pick<PageProps<'/tests/[id]'>,
   const rows = all.filter((r) => r.lang === lang);
   const runs = runRows({ testId: id }).filter((r) => inTier(r.parameterSize, tier));
 
-  // speed vs quality: tokens/s when every model has it (generation tests), latency otherwise (retrieval tests)
-  const scored = rows.filter((r) => r.judgeAvg != null);
+  // speed vs quality. Quality is the judge average; tests without judges (Terminal-Bench's verifier, retrieval
+  // metrics) or with no judged run yet use the automatic score. Never a mix: the two aren't the same measure.
+  const useJudge = test.judged !== false && rows.some((r) => r.judgeAvg != null);
+  const quality = (r: (typeof rows)[number]) => (useJudge ? r.judgeAvg : r.autoScore);
+  // speed: tokens/s when every model has it (generation tests), latency otherwise (retrieval tests)
+  const scored = rows.filter((r) => quality(r) != null);
   const useTok = scored.length > 0 && scored.every((r) => r.avgTokPerSec != null);
   const points: SpeedPoint[] = scored
     .filter((r) => (useTok ? r.avgTokPerSec : r.avgLatencyMs) != null)
     .map((r) => ({
       model: r.variant ? `${r.model} (${r.variant})` : r.model,
       x: Math.round((useTok ? r.avgTokPerSec! : r.avgLatencyMs!) * 10) / 10,
-      judgeAvg: r.judgeAvg!,
+      score: quality(r)!,
     }));
 
   return (
@@ -86,10 +90,15 @@ async function TestView({ params, searchParams }: Pick<PageProps<'/tests/[id]'>,
       <section className="rounded-lg border border-line bg-panel p-4">
         <h2 className="font-semibold">Speed vs quality</h2>
         <p className="mb-3 text-xs text-muted">
-          Latest judged run per model ({lang.toUpperCase()}). Up is better;{' '}
-          {useTok ? 'right is faster (tokens/s)' : 'left is faster (average latency, ms)'}.
+          Latest {useJudge ? 'judged run' : 'run'} per model ({lang.toUpperCase()}), scored by{' '}
+          {useJudge ? 'the judges' : test.judged === false ? 'its automatic check' : 'the automatic check (no judged runs yet)'}. Up is
+          better; {useTok ? 'right is faster (tokens/s)' : 'left is faster (average latency, ms)'}.
         </p>
-        <SpeedQualityScatter points={points} xLabel={useTok ? 'tokens/s' : 'avg latency (ms)'} />
+        <SpeedQualityScatter
+          points={points}
+          xLabel={useTok ? 'tokens/s' : 'avg latency (ms)'}
+          yLabel={useJudge ? 'Judge avg' : 'Auto score'}
+        />
       </section>
 
       <section className="rounded-lg border border-line bg-panel">

@@ -57,14 +57,24 @@ function niceMax(max: number) {
 const X_DOMAIN: [number, (max: number) => number] = [0, niceMax];
 
 /** Scatter tooltip: the model name as title (identity never color-alone), then its two values. */
-function ScatterTip({ active, payload, xLabel }: { active?: boolean; payload?: readonly { payload?: unknown }[]; xLabel: string }) {
+function ScatterTip({
+  active,
+  payload,
+  xLabel,
+  yLabel,
+}: {
+  active?: boolean;
+  payload?: readonly { payload?: unknown }[];
+  xLabel: string;
+  yLabel: string;
+}) {
   const p = payload?.[0]?.payload as SpeedPoint | undefined;
   if (!active || !p) return null;
   return (
     <div style={TOOLTIP_CONTENT} className="px-2.5 py-1.5">
       <div className="font-medium">{p.model}</div>
       <div className="text-muted">
-        Judge avg <span className="text-fg tabular">{p.judgeAvg.toFixed(1)}</span> · {xLabel}{' '}
+        {yLabel} <span className="text-fg tabular">{p.score.toFixed(1)}</span> · {xLabel}{' '}
         <span className="text-fg tabular">{p.x.toLocaleString()}</span>
       </div>
     </div>
@@ -75,11 +85,12 @@ export interface SpeedPoint {
   model: string;
   /** x value: tokens/s, or latency (ms) when the test has no token throughput */
   x: number;
-  judgeAvg: number;
+  /** 0–10: judge average, or the automatic score for tests without judges */
+  score: number;
 }
 
 /** Speed vs quality: one dot per model (single series → no legend; names as direct labels). */
-export function SpeedQualityScatter({ points, xLabel }: { points: SpeedPoint[]; xLabel: string }) {
+export function SpeedQualityScatter({ points, xLabel, yLabel }: { points: SpeedPoint[]; xLabel: string; yLabel: string }) {
   // labels sit beside their dot (not above: close dots made stacked-above labels collide); the right-most dots put
   // theirs on the left so they stay inside the plot. Two Scatter elements, same color: still one series.
   const [leftSide, rightSide] = useMemo(() => {
@@ -87,8 +98,8 @@ export function SpeedQualityScatter({ points, xLabel }: { points: SpeedPoint[]; 
     return [points.filter((p) => p.x <= max * 0.7), points.filter((p) => p.x > max * 0.7)];
   }, [points]);
   const tip = useCallback(
-    (props: { active?: boolean; payload?: readonly { payload?: unknown }[] }) => <ScatterTip {...props} xLabel={xLabel} />,
-    [xLabel],
+    (props: { active?: boolean; payload?: readonly { payload?: unknown }[] }) => <ScatterTip {...props} xLabel={xLabel} yLabel={yLabel} />,
+    [xLabel, yLabel],
   );
   if (points.length < 2) return <p className="text-xs text-muted">Needs at least two models with scores.</p>;
   return (
@@ -109,8 +120,8 @@ export function SpeedQualityScatter({ points, xLabel }: { points: SpeedPoint[]; 
           />
           <YAxis
             type="number"
-            dataKey="judgeAvg"
-            name="Judge avg"
+            dataKey="score"
+            name={yLabel}
             domain={SCORE_DOMAIN}
             ticks={SCORE_TICKS_FULL}
             tick={AXIS_TICK}
