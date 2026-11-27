@@ -44,6 +44,25 @@
       "type": "shell",
       "command": "pnpm bench --skip-existing --dry-run",
       "problemMatcher": []
+    },
+    {
+      // Background task: counts as ready when `next start` prints "Ready in", so a launch config can use it as
+      // preLaunchTask and then talk to the app. The server keeps running in this task's terminal (stop it there).
+      // Fails if :3000 is taken (stop any other app server first: benchmarks must run from one server at a time).
+      "label": "App: build + start (production)",
+      "detail": "pnpm build && pnpm start (:3000), left running",
+      "type": "shell",
+      "command": "pnpm build && pnpm start",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "next-start",
+        "pattern": { "regexp": "^__never_matches__$" },
+        "background": {
+          "activeBegins": true,
+          "beginsPattern": "next build",
+          "endsPattern": "Ready in"
+        }
+      }
     }
   ]
 }

@@ -245,7 +245,10 @@ pnpm bench --help
 every combination whose last run used other `ai` / `ai-sdk-ollama` versions. Every session records the installed
 versions of `ai`, `@ai-sdk/*`, `ai-sdk-ollama` and the `ollama` JS client (session header, run tables, CSV), so score
 changes can be traced to a library update. `.vscode/launch.json` (Run and Debug) has `ai-sdk:update` (update packages,
-then smoke test), `bench:dry-run` (`pnpm bench --skip-existing --dry-run`), `dev` and `start`.
+then smoke test), `bench:dry-run` (`pnpm bench --skip-existing --dry-run`), `dev`, `start`, and `bench:quick`. The
+last one builds and starts the production server on :3000 (task "App: build + start (production)", left running in
+its terminal), then runs `pnpm bench --subset quick --lang en --judges openai --skip-existing`. Stop any other app
+server first: :3000 must be free, and benchmarks must run from one server at a time.
 
 ## Public benchmarks (OmniDocBench, BFCL, MMMU-Pro)
 
@@ -270,9 +273,19 @@ MMMU-Pro are Apache-2.0. MMMU-Pro is read from the dataset's Parquet files with 
 
 ## Web search and MCP tests
 
-- **web-search** uses `ollama.tools.webSearch()` / `webFetch()`. They call Ollama's cloud API with `OLLAMA_API_KEY`
-  (usage credits required); a preflight fails the run clearly when unavailable. Answers that change over time are
-  checked against the npm registry / GitHub API at run time.
+- **web-search** (v2) gives the model a **DuckDuckGo MCP server**: tools `search` and `fetch_content`, from Docker's
+  `mcp/duckduckgo` image, connected with `@ai-sdk/mcp` over stdio. It replaced ai-sdk-ollama's `webSearch`/`webFetch`,
+  which call Ollama's cloud API and need paid credits. Answers that change over time are checked against the npm
+  registry / GitHub API at run time.
+  - **Image:** `docker/duckduckgo/Dockerfile`, built automatically on first use as `ollama-bench-duckduckgo:<hash>`.
+    It's the upstream image pinned by digest, plus the optional `curl_cffi` backend with Firefox impersonation. Without
+    those, DuckDuckGo blocks the server (HTTP 202, empty results); its hardcoded Chrome impersonation was blocked too
+    (checked 2026-11-27).
+  - **Sandbox:** one container per run, with internet access, no host mounts, 512 MB / 1 CPU and the owner label used
+    for recovery. A preflight search fails the run up front if DuckDuckGo blocks it.
+  - **Live web:** rankings and pages change, and DuckDuckGo rate-limits (the server caps at 30 searches / 20 fetches
+    a minute). Empty or failed searches aren't scored against the model; judges see them flagged as infrastructure
+    problems.
 - **mcp** runs the tool-use cases with tools served by `scripts/mcp/benchmark-server.mjs` (stdio) through
   `@ai-sdk/mcp`, so MCP and native tool-calling scores are comparable. It also checks MCP Apps: only model-visible
   tools (`splitMCPAppTools`) reach the model.

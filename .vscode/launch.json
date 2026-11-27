@@ -33,6 +33,18 @@
       "runtimeArgs": ["bench", "--skip-existing", "--dry-run"],
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      // Production build + server on :3000 (background task, left running), then the quick English benchmark with
+      // one judge, skipping what's already done for the current suites and SDK versions.
+      "name": "bench:quick",
+      "type": "node",
+      "request": "launch",
+      "preLaunchTask": "App: build + start (production)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["bench", "--subset", "quick", "--lang", "en", "--judges", "openai", "--skip-existing"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
     }
   ]
 }

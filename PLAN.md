@@ -91,7 +91,8 @@ run_scores    run_id, auto_score, judge_openai, judge_google, judge_anthropic, j
 8. ✅ Follow-ups (2026-11-26):
    - Embedding reranking via `ollama.embeddingReranking()` (option: SDK vs cosine + prefixes).
    - Size tiers (< 10B / 10–50B / > 50B) in the UI and `--tier` in the CLI.
-   - **web-search** test (`ollama.tools.webSearch/webFetch`; live references from npm/GitHub; preflight).
+   - **web-search** test (`ollama.tools.webSearch/webFetch`; live references from npm/GitHub; preflight). Replaced
+     2026-11-27 (v2) by a DuckDuckGo MCP server, since Ollama's web API needs paid credits.
    - **mcp** test (`@ai-sdk/mcp`, local stdio server with the tool-use tools + MCP Apps).
    - SDK versions recorded per session (UI, CSV, CLI skip-existing).
    - VS Code tasks to update the SDK packages.
@@ -164,7 +165,8 @@ run_scores    run_id, auto_score, judge_openai, judge_google, judge_anthropic, j
 - `webFetch` doesn't throw on failure: it returns `{ content: "", error }`, so a model silently sees an empty page.
   `webSearch` throws.
 - Web search/fetch always call `https://ollama.com/api/web_search|web_fetch` with `OLLAMA_API_KEY`, whatever
-  `baseURL` is. They need ollama.com usage credits (the current key has none: "Add usage credits").
+  `baseURL` is. They need ollama.com usage credits (the current key has none: "Add usage credits"). The web-search
+  test no longer uses them (DuckDuckGo MCP server since v2).
 - Native structured output isn't enforced for gpt-oss:20b (returned `{"order": …}` instead of `{"ranking": …}`).
 - Non-image file parts are dropped silently (Ollama accepts only images); see `src/lib/files/file-part.ts`.
 
