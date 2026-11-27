@@ -4,7 +4,8 @@ import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtMs, fmtNum } from '@/components/sco
 
 export const modelHref = (name: string) => `/models/${name.split('/').map(encodeURIComponent).join('/')}`;
 
-export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
+/** `moreHref`: where a row's folded results (`others`, see bestPerModel) are listed. */
+export function LeaderboardTable({ rows, moreHref }: { rows: LeaderboardRow[]; moreHref?: string }) {
   if (!rows.length) return <p className="px-4 py-6 text-muted">No runs yet.</p>;
   return (
     <div className="overflow-x-auto">
@@ -41,6 +42,15 @@ export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
                   {r.quantization ? `${r.quantization} · ` : ''}
                   {r.digest}
                 </span>
+                {!!r.others && moreHref && (
+                  <Link
+                    href={moreHref}
+                    className="ml-2 text-xs text-muted hover:text-fg"
+                    title={`Best of ${r.others + 1} results (languages, variants, versions): all of them on the test page`}
+                  >
+                    +{r.others}
+                  </Link>
+                )}
               </td>
               {JUDGE_ORDER.map((j) => (
                 <td key={j} className="px-3 py-2 text-right">

@@ -128,6 +128,34 @@ export interface LeaderboardRow {
   autoScore: number | null;
   avgTokPerSec: number | null;
   avgLatencyMs: number | null;
+  /** set by bestPerModel: the model's other leaderboard rows (languages, variants, digests) folded into this one */
+  others?: number;
+}
+
+/**
+ * One row per model name: its best leaderboard row (judge average, else the automatic score). Results of the test's
+ * current suite version win over older ones, then judged results over unjudged ones (as in leaderboard(): a high
+ * auto score from an unjudged quick run shouldn't hide the judges' verdict), then the higher score, then the most
+ * recent. Sorted best first, baselines last.
+ */
+export function bestPerModel(rows: LeaderboardRow[], currentSuite: string): LeaderboardRow[] {
+  const score = (r: LeaderboardRow) => r.judgeAvg ?? r.autoScore ?? -1;
+  const key = (r: LeaderboardRow) => [Number(r.suiteVersion === currentSuite), Number(r.judgeAvg != null), score(r), r.lastRunAt];
+  const better = (a: LeaderboardRow, b: LeaderboardRow) => {
+    const [x, y] = [key(a), key(b)];
+    const i = x.findIndex((v, n) => v !== y[n]);
+    return i >= 0 && x[i] > y[i];
+  };
+  const best = new Map<string, LeaderboardRow>();
+  const count = new Map<string, number>();
+  for (const r of rows) {
+    count.set(r.model, (count.get(r.model) ?? 0) + 1);
+    const cur = best.get(r.model);
+    if (!cur || better(r, cur)) best.set(r.model, r);
+  }
+  return [...best.values()]
+    .map((r) => ({ ...r, others: count.get(r.model)! - 1 }))
+    .sort((a, b) => Number(a.provider !== 'ollama') - Number(b.provider !== 'ollama') || score(b) - score(a));
 }
 
 /** Latest completed run per (model digest, language) for a test: what the model scores *now*. */

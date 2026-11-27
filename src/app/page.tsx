@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { connection } from 'next/server';
-import { capabilityBoard, capabilityOverview, leaderboard, recentSessions } from '@/lib/queries';
+import { bestPerModel, capabilityBoard, capabilityOverview, leaderboard, recentSessions } from '@/lib/queries';
 import { listTests, type TestSummary } from '@/lib/tests/registry';
 import { Score } from '@/components/score';
 import { LeaderboardTable } from '@/components/leaderboard-table';
@@ -23,8 +23,8 @@ export default function Dashboard({ searchParams }: PageProps<'/'>) {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-muted">
-          The latest result of each model, per test or per capability. Scores are 0–10: each judge&apos;s score, their average, and the
-          automatic checks.
+          Per test: each model&apos;s best result (any language or variant; the test page lists them all). Per capability: the latest result
+          with default settings. Scores are 0–10: each judge&apos;s score, their average, and the automatic checks.
         </p>
       </div>
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
@@ -218,7 +218,11 @@ function TestView({ tests, tier }: { tests: TestSummary[]; tier: Tier }) {
   return (
     <>
       {tests.map((t) => {
-        const rows = leaderboard(t.id).filter((r) => inTier(r.parameterSize, tier));
+        // one row per model: its best result in any language or variant (the test page lists them all)
+        const rows = bestPerModel(
+          leaderboard(t.id).filter((r) => inTier(r.parameterSize, tier)),
+          t.suiteVersion,
+        );
         return (
           <section key={t.id} className="rounded-lg border border-line bg-panel">
             <div className="flex items-baseline gap-3 border-b border-line px-4 py-3">
@@ -235,7 +239,7 @@ function TestView({ tests, tier }: { tests: TestSummary[]; tier: Tier }) {
                 </Link>
               </span>
             </div>
-            <LeaderboardTable rows={rows} />
+            <LeaderboardTable rows={rows} moreHref={`/tests/${t.id}`} />
           </section>
         );
       })}

@@ -56,7 +56,9 @@ or the value set in the run form / `pnpm bench --num-ctx`. It therefore never de
 
 The dashboard and the run form both have two views.
 
-- **By test:** one leaderboard per test, or one test per run (as before).
+- **By test:** one leaderboard per test, or one test per run. The dashboard shows each model once, with its best result
+  (current suite version first, judged before unjudged, then score); `+N` links to the test page, which lists every
+  language, variant and digest.
 - **By capability:** tests grouped by what they measure (`src/config/capabilities.ts`; a test can be in several).
 
 | Capability | Tests |
