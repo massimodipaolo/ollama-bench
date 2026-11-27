@@ -7,6 +7,7 @@
  *   pnpm bench --subset full --skip-existing               # overnight: only what is missing for the current suites
  *   pnpm bench --tests rag,tool-use --models "/^qwen/,gemma4:31b" --lang it --judges openai,anthropic
  *   pnpm bench --all-variants --tests structured-output    # every option combination (native + prompt)
+ *   pnpm bench --capabilities vision,tools --tier small    # every test of these capabilities
  *
  * Needs the app running (`pnpm dev`, or `pnpm build && pnpm start` for long runs). --url defaults to $BENCH_URL or
  * http://localhost:3000. Ctrl+C cancels the current session and still writes the report.
@@ -15,12 +16,16 @@ import { parseArgs } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
 import { inTier, parseTier } from '../src/lib/tiers';
+import { CAPABILITIES, getCapability } from '../src/config/capabilities';
 
 const HELP = `Usage: pnpm bench [options]
 
   --url <url>            app URL (default $BENCH_URL or http://localhost:3000)
   --tests <ids>          comma-separated test ids (default: all, except hours-long ones like terminal-bench,
                          which run only when named: --tests terminal-bench)
+  --capabilities <ids>   the tests of these capabilities (${CAPABILITIES.map((c) => c.id).join(', ')}), as listed in
+                         src/config/capabilities.ts; combines with --tests. A capability that lists an hours-long
+                         test includes it (coding → terminal-bench)
   --models <list>        comma-separated model names or /regex/ (default: every compatible model)
   --exclude <list>       models to leave out (names or /regex/)
   --tier <t>             model size: small (<10B) | medium (10-50B) | large (>50B) | all (default)
@@ -44,6 +49,7 @@ const { values: a } = parseArgs({
   options: {
     url: { type: 'string' },
     tests: { type: 'string' },
+    capabilities: { type: 'string' },
     models: { type: 'string' },
     exclude: { type: 'string' },
     tier: { type: 'string', default: 'all' },
@@ -262,8 +268,22 @@ async function main() {
   const testIds = list(a.tests);
   const unknown = testIds.filter((id) => !allTests.some((t) => t.id === id));
   if (unknown.length) throw new Error(`Unknown test(s): ${unknown.join(', ')}. Available: ${allTests.map((t) => t.id).join(', ')}`);
-  // long agentic benchmarks (cliOnly) never ride along with "all tests": name them in --tests
-  const tests = testIds.length ? allTests.filter((t) => testIds.includes(t.id)) : allTests.filter((t) => !t.cliOnly);
+  // --capabilities expands to the tests src/config/capabilities.ts lists for them (a test added there is picked up)
+  const capIds = list(a.capabilities);
+  const unknownCaps = capIds.filter((id) => !getCapability(id));
+  if (unknownCaps.length)
+    throw new Error(`Unknown capability: ${unknownCaps.join(', ')}. Available: ${CAPABILITIES.map((c) => c.id).join(', ')}`);
+  const capTests = [...new Set(capIds.flatMap((id) => getCapability(id)!.tests))];
+  const missing = capTests.filter((id) => !allTests.some((t) => t.id === id));
+  if (missing.length) console.warn(`Not in this app's suite, skipped: ${missing.join(', ')}`);
+  const wanted = new Set([...testIds, ...capTests]);
+  // long agentic benchmarks (cliOnly) never ride along with "all tests": name them in --tests or via their capability
+  const tests = wanted.size ? allTests.filter((t) => wanted.has(t.id)) : allTests.filter((t) => !t.cliOnly);
+  if (capIds.length) {
+    const long = tests.filter((t) => t.cliOnly && !testIds.includes(t.id)).map((t) => t.id);
+    console.log(`Capabilities ${capIds.join(', ')} → ${capTests.filter((id) => !missing.includes(id)).join(', ')}`);
+    if (long.length) console.log(`  includes hours-long ${long.join(', ')} (leave its capability out to skip it)`);
+  }
   const include = a.models ? matcher(list(a.models)) : () => true;
   const exclude = a.exclude ? matcher(list(a.exclude)) : () => false;
   if (a.tier && parseTier(a.tier) !== a.tier) throw new Error(`--tier must be one of: all, small, medium, large`);

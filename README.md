@@ -231,8 +231,13 @@ pnpm bench --subset full --skip-existing              # overnight: only what's m
 pnpm bench --tests rag,tool-use --models "/^qwen/,gemma4:31b" --lang it --judges openai,anthropic
 pnpm bench --tests structured-output --all-variants   # every option combination (native + prompt)
 pnpm bench --tests doc-to-markdown --num-ctx 32768    # non-default context: separate variant, capped per model
+pnpm bench --capabilities vision,tools --tier small   # every test of these capabilities (src/config/capabilities.ts)
 pnpm bench --help
 ```
+
+`--capabilities` reads the capability → tests mapping from `src/config/capabilities.ts`, so a test added to a
+capability there is included without touching the CLI. It combines with `--tests`. Hours-long tests are included
+when their capability is named (`coding` → Terminal-Bench); a plain `pnpm bench` still skips them.
 
 - It talks to the app through its API (`--url`, default `$BENCH_URL` or `http://localhost:3000`). Sessions share the
   app's single-GPU lock, so batch and browser runs never overlap, and every session can be watched live in the UI.
