@@ -1,6 +1,14 @@
 {
   "suppressions": [
     {
+      "id": "codeql-cf1e4484",
+      "reason": "The package and repository names come from the web-search cases in fixtures/web-search/cases/*.json, committed in this repository, never from a user or a model; the request reads their public latest version from api.github.com (releases/latest) to score the answer, so the only file data that leaves the machine is those public names. The test runs only from the CLI (pnpm bench) on a developer machine."
+    },
+    {
+      "id": "codeql-f372030f",
+      "reason": "The package and repository names come from the web-search cases in fixtures/web-search/cases/*.json, committed in this repository, never from a user or a model; the request reads their public latest version from registry.npmjs.org to score the answer, so the only file data that leaves the machine is those public names. The test runs only from the CLI (pnpm bench) on a developer machine."
+    },
+    {
       "id": "codeql-fc221bc2",
       "reason": "The HTML comes from mammoth converting .data/files/17incddocguide.docx, a public IRS document committed in this repository, never user input; the stripped cell text only feeds a Markdown table whose cell() escapes every < and > before writing fixtures/doc-to-markdown/reference/, so no tag can reach the output. The script is a maintainer tool run by hand on a developer machine. A follow-up replace removing stray < and > (output identical) did not clear the alert, so it is not worth a code change."
     },
