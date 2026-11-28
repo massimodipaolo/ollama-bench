@@ -1,0 +1,26 @@
+# Build context for the Dockerfile: sources only.
+
+# secrets: the build gets .env.docker as a BuildKit secret instead (see Dockerfile)
+.env*
+!.env.example
+
+# installed or generated: rebuilt inside the image
+node_modules
+.next
+*.tsbuildinfo
+next-env.d.ts
+
+# local data: only the sample source files the tests read are part of the image
+.data/*
+!.data/files/
+
+# repository, editor and agent files
+.git
+.github
+.githooks
+.vscode
+.claude
+*.log
+coverage
+Dockerfile
+.dockerignore

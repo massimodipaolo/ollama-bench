@@ -169,17 +169,24 @@ async function executeSession(sessionId: string) {
           };
           let loadMs: number | undefined;
           let shared: unknown;
+          // the model's execution time: warm-up + preparation + each case's run; checks, judging and DB writes are
+          // left out (see runs.exec_ms)
+          let execMs = 0;
           try {
             if (isOllama) {
+              const t = performance.now();
               loadMs = await warmUp(
                 model.name,
                 embeddingOnly ? Math.min(session.config.numCtx, 2048) : session.config.numCtx,
                 embeddingOnly,
               );
+              execMs += performance.now() - t;
               setRun(run.id, { loadMs });
             }
             if (test.prepare) {
+              const t = performance.now();
               const p = await test.prepare({ ...baseCtx, onDelta: () => {} });
+              execMs += performance.now() - t;
               shared = p.shared;
               if (p.stats) setRun(run.id, { stats: p.stats });
             }
@@ -218,6 +225,7 @@ async function executeSession(sessionId: string) {
             let out: CaseOutput | undefined;
             let error: string | undefined;
             let partial: string | undefined;
+            const caseStart = performance.now();
             try {
               out = await test.run(
                 { ...baseCtx, shared, onDelta: (text) => emit(sessionId, { type: 'delta', runId: run.id, caseId: c.id, text }) },
@@ -227,6 +235,9 @@ async function executeSession(sessionId: string) {
               error = (e as Error).message ?? String(e);
               if (e instanceof GenerationError && e.partialOutput) partial = e.partialOutput;
             }
+            // the whole case, failed ones included (time until the failure); the checks below aren't part of it
+            const caseExecMs = performance.now() - caseStart;
+            execMs += caseExecMs;
             // thinking models can spend the whole output budget on hidden reasoning (some ignore think=false)
             if (out && !out.output.trim() && out.reasoning?.trim()) {
               error = `empty answer: the whole output budget went to reasoning (${out.reasoning.length} chars${session.config.think ? '' : ', although thinking was off'})`;
@@ -247,6 +258,7 @@ async function executeSession(sessionId: string) {
                 tokensOut: out?.tokensOut,
                 reasoningTokens: out?.reasoningTokens,
                 tokPerSec: out?.tokPerSec,
+                execMs: caseExecMs,
                 autoScore: auto,
                 checks,
                 error,
@@ -268,6 +280,7 @@ async function executeSession(sessionId: string) {
                 tokensOut: out?.tokensOut,
                 reasoningTokens: out?.reasoningTokens,
                 tokPerSec: out?.tokPerSec,
+                execMs: caseExecMs,
               },
               checks,
               autoScore: auto,
@@ -303,7 +316,12 @@ async function executeSession(sessionId: string) {
             }
           }
           if (test.cleanup) await test.cleanup(shared).catch((e) => console.error('[runner] cleanup failed', e));
-          setRun(run.id, { status: signal.aborted ? 'error' : 'done', finishedAt: Date.now(), error: signal.aborted ? 'cancelled' : null });
+          setRun(run.id, {
+            status: signal.aborted ? 'error' : 'done',
+            finishedAt: Date.now(),
+            execMs,
+            error: signal.aborted ? 'cancelled' : null,
+          });
           emit(sessionId, { type: 'run-status', runId: run.id, status: signal.aborted ? 'error' : 'done' });
           if (!isOllama) continue;
           // two models: unload each after its run, so the second never shares the GPU with the first

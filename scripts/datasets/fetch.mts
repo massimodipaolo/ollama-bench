@@ -33,16 +33,34 @@ const writeJson = (p: string, v: unknown) => {
 };
 const readJson = <T,>(p: string) => JSON.parse(fs.readFileSync(p, 'utf8')) as T;
 
-/** `backoffMs`: base wait between attempts (the HF dataset viewer generates image assets on first request: 403 for ~20 s). */
+/** The file's text, or undefined if it doesn't exist (read directly: checking first races with a change in between). */
+function readIfExists(p: string): string | undefined {
+  try {
+    return fs.readFileSync(p, 'utf8');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw e;
+  }
+}
+
+/**
+ * Downloads `url` to `dest` unless a non-empty `dest` is already there. The body goes to `<dest>.part` first and is
+ * renamed into place when complete, so an interrupted download never leaves a truncated `dest` that a later run
+ * would skip. `backoffMs`: base wait between attempts (the HF dataset viewer generates image assets on first
+ * request: 403 for ~20 s).
+ */
 async function download(url: string, dest: string, retries = 3, backoffMs = 1500): Promise<number> {
-  if (fs.existsSync(dest) && fs.statSync(dest).size > 0) return fs.statSync(dest).size;
+  const existing = fs.statSync(dest, { throwIfNoEntry: false })?.size;
+  if (existing) return existing;
   fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const part = `${dest}.part`;
   for (let i = 0; ; i++) {
     try {
       const r = await fetch(url);
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
       const buf = Buffer.from(await r.arrayBuffer());
-      fs.writeFileSync(dest, buf);
+      fs.writeFileSync(part, buf);
+      fs.renameSync(part, dest);
       return buf.length;
     } catch (e) {
       if (i >= retries) throw new Error(`download failed ${url}: ${(e as Error).message}`);
@@ -420,7 +438,7 @@ async function terminalBench() {
   const m = readJson<{ repo: string; commit: string; quick: string[]; count: number }>(path.join(FIX, 'terminal-bench', 'manifest.json'));
   const repo = path.join(dir, 'repo');
   const stamp = path.join(repo, '.commit');
-  if (!fs.existsSync(stamp) || fs.readFileSync(stamp, 'utf8').trim() !== m.commit) {
+  if (readIfExists(stamp)?.trim() !== m.commit) {
     const tgz = path.join(dir, `${m.commit.slice(0, 12)}.tar.gz`);
     const bytes = await download(`https://codeload.github.com/${m.repo}/tar.gz/${m.commit}`, tgz);
     console.log(`terminal-bench: ${(bytes / 1e6).toFixed(1)} MB at ${m.commit.slice(0, 12)}`);

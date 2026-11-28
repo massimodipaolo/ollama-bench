@@ -63,6 +63,30 @@
           "endsPattern": "Ready in"
         }
       }
+    },
+    // Docker names, fixed by the workspace folder name (lowercase, as Docker requires):
+    //   image      <folder>:local        e.g. ollama-bench:local
+    //   container  <folder>-local        e.g. ollama-bench-local (also its hostname)
+    {
+      // Production image built locally (preLaunchTask of `docker:run`): .env.docker is passed as a BuildKit secret
+      // (see Dockerfile), never stored in the image. No URL is baked in: `docker:run` sets SERVER_URL (port 3300).
+      // --pull: always the current node:24-alpine, so security fixes in the base image reach the image (and Scout).
+      "label": "docker:build",
+      "type": "process",
+      "command": "docker",
+      "args": ["build", "--pull", "--secret", "id=env,src=.env.docker", "-t", "${workspaceFolderBasename}:local", "."],
+      "dependsOn": ["docker:stop"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      // Removes the `docker:run` container (stopping a debug session does not stop it); no error when there is none
+      "label": "docker:stop",
+      "type": "process",
+      "command": "node",
+      "args": ["-e", "require('child_process').spawnSync('docker', ['rm', '-f', '${workspaceFolderBasename}-local'], { stdio: 'ignore' })"],
+      "presentation": { "reveal": "never", "close": true },
+      "problemMatcher": []
     }
   ]
 }

@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
         'avg_ttft_ms',
         'avg_tok_s',
         'load_ms',
+        'exec_ms',
         'stats',
       ],
       ...runs.map((r) => [
@@ -89,6 +90,7 @@ export async function GET(req: NextRequest) {
         r.avgTtftMs?.toFixed(0),
         r.avgTokPerSec?.toFixed(1),
         r.loadMs?.toFixed(0),
+        r.execMs?.toFixed(0),
         r.stats,
       ]),
     ]);
@@ -126,6 +128,7 @@ export async function GET(req: NextRequest) {
         'tokens_in',
         'tokens_out',
         'tok_s',
+        'exec_ms',
         'error',
         'output',
       ],
@@ -146,6 +149,7 @@ export async function GET(req: NextRequest) {
           c.tokensIn,
           c.tokensOut,
           c.tokPerSec?.toFixed(1),
+          c.execMs?.toFixed(0),
           c.error,
           c.output,
         ];
@@ -153,7 +157,7 @@ export async function GET(req: NextRequest) {
     ]);
   }
 
-  const name = ['ollama-benchmark', p.get('testId'), p.get('model')?.replace(/[^\w.-]+/g, '_'), level].filter(Boolean).join('-');
+  const name = ['ollama-bench', p.get('testId'), p.get('model')?.replace(/[^\w.-]+/g, '_'), level].filter(Boolean).join('-');
   // BOM so Excel opens UTF-8 correctly
   return new Response('﻿' + body, {
     headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${name}.csv"` },

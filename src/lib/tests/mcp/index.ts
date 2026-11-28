@@ -42,7 +42,7 @@ export const mcp: TestDefinition<ToolCase> = {
     const t0 = performance.now();
     const client = await createMCPClient({
       transport: new Experimental_StdioMCPTransport({ command: process.execPath, args: [SERVER], cwd: process.cwd() }),
-      clientName: 'ollama-benchmark',
+      clientName: 'ollama-bench',
       capabilities: mcpAppClientCapabilities,
     });
     try {

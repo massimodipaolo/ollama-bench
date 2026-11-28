@@ -1,30 +1,49 @@
 {
-  // Run & Debug configurations. The SDK upgrade itself is a task (.vscode/tasks.json); the "Update AI SDK"
-  // entry runs it as preLaunchTask and then smoke-tests the result.
+  // Run & Debug configurations, in three groups of the launch list (presentation.group, sorted by name):
+  //   1-run       the app: dev server, production server, Docker image
+  //   2-bench     benchmark runs, and the AI SDK update that precedes a re-benchmark
+  //   3-security  dependency audit, image CVE scan, secret scan, CodeQL scan (all documented in scripts/README.md)
+  // Tasks they depend on live in .vscode/tasks.json.
+  // Docker names, fixed by the workspace folder name (lowercase, as Docker requires): image <folder>:local
+  // (e.g. ollama-bench:local), container and its hostname <folder>-local (e.g. ollama-bench-local).
   "version": "0.2.0",
   "configurations": [
+    // ---------- 1-run
     {
       "name": "dev",
       "type": "node-terminal",
       "request": "launch",
-      "command": "pnpm dev"
+      "command": "pnpm dev",
+      "presentation": { "group": "1-run", "order": 1 }
     },
     {
       "name": "start",
       "type": "node-terminal",
       "request": "launch",
-      "command": "pnpm start"
-    },    
-    {
-      "name": "ai-sdk:update",
-      "type": "node",
-      "request": "launch",
-      "preLaunchTask": "AI SDK: update packages",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["smoke"],
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"]
+      "command": "pnpm start",
+      "presentation": { "group": "1-run", "order": 2 }
     },
+    {
+      // Production image (Dockerfile, runner stage) on http://localhost:3300: builds it (`docker:build` task),
+      // then runs it with .env.docker mounted as the server's .env (dotenv quoting and $VAR expansion, unlike
+      // `--env-file`). Other services running locally are reached on the host through host.docker.internal.
+      // The port is published on the host's loopback only: the app has no authentication.
+      "name": "docker:run",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker run --rm --name ${workspaceFolderBasename}-local --hostname ${workspaceFolderBasename}-local -p 127.0.0.1:3300:3000 --add-host=host.docker.internal:host-gateway -v \"${workspaceFolder}/.env.docker:/app/.env:ro\" -e SERVER_URL=http://localhost:3300 ${workspaceFolderBasename}:local",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "docker:build",
+      "postDebugTask": "docker:stop",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Ready in",
+        "uriFormat": "http://localhost:3300"
+      },
+      "presentation": { "group": "1-run", "order": 3 }
+    },
+
+    // ---------- 2-bench
     {
       "name": "bench:dry-run",
       "type": "node",
@@ -32,7 +51,8 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["bench", "--skip-existing", "--dry-run"],
       "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"]
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "2-bench", "order": 1 }
     },
     {
       // Production build + server on :3000 (background task, left running), then the quick English benchmark with
@@ -44,7 +64,8 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["bench", "--subset", "quick", "--lang", "en", "--judges", "openai", "--skip-existing"],
       "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"]
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "2-bench", "order": 2 }
     },
     {
       // Same production server, then the quick Terminal-Bench tasks (CLI only, so it must be named) with a 32k
@@ -67,7 +88,67 @@
         "32768"
       ],
       "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"]
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "2-bench", "order": 3 }
+    },
+    {
+      // The SDK upgrade itself is a task ("AI SDK: update packages"): this runs it, then smoke-tests the result.
+      // Afterwards, `pnpm bench --skip-existing` re-runs what the new SDK versions made due.
+      "name": "ai-sdk:update",
+      "type": "node",
+      "request": "launch",
+      "preLaunchTask": "AI SDK: update packages",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["smoke"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "2-bench", "order": 4 }
+    },
+
+    // ---------- 3-security
+    {
+      // Known vulnerabilities in the production dependencies (pnpm-lock.yaml: runtime code, not dev/build tools).
+      // Complements `security:scout`, which sees only what ends up in the image. Fix nested ones with `pnpm audit --fix`
+      // (adds pnpm overrides) or by upgrading the direct dependency that pulls them in.
+      "name": "security:audit",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm audit --prod",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-security", "order": 1 }
+    },
+    {
+      // Docker Scout on the image `docker:run` builds: CVEs that have a fix (Alpine packages and the npm packages in
+      // the image), then base image recommendations. Scans the image as it is: rebuild it first (`docker:build` task)
+      // after code or Dockerfile changes.
+      "name": "security:scout",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker scout cves --only-fixed ${workspaceFolderBasename}:local; docker scout recommendations ${workspaceFolderBasename}:local",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-security", "order": 2 }
+    },
+    {
+      // gitleaks beyond the pre-commit hook (scripts/gitleaks.mts): every commit of every branch, the working tree
+      // with git-ignored files (.next, .data, logs), and the Docker image's filesystem. Also searches for the values
+      // in .env / .env.docker wherever they were copied. About a minute; the image part needs `docker:build` first.
+      "name": "security:secrets",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm security:secrets --image ${workspaceFolderBasename}:local",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-security", "order": 3 }
+    },
+    {
+      // CodeQL security-extended queries on the sources (scripts/codeql.mts): reuses the database when the sources
+      // haven't changed, then writes results.md / results.html in .data/codeql/ and prints links to them. Takes
+      // about 15-20 minutes; `pnpm security:codeql --report-only` rewrites the reports from the last scan in a second.
+      "name": "security:codeql",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm security:codeql --report md,html",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-security", "order": 4 }
     }
   ]
 }

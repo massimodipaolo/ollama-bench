@@ -1,4 +1,4 @@
-# Ollama Benchmark
+# ollama-bench
 
 Benchmark Ollama models through a set of tests. You can compare two models side by side. Blind judges from OpenAI,
 Google and Anthropic score each run, and every result is stored in a local SQLite history. See [PLAN.md](PLAN.md) for
@@ -11,6 +11,9 @@ pnpm install
 pnpm smoke   # checks Ollama + each judge with one tiny call
 pnpm dev     # http://localhost:3000
 ```
+
+Every command-line script (benchmarks, re-judging, dataset downloads, fixture builders, security scans) is documented,
+with its options, output files and exit codes, in [scripts/README.md](scripts/README.md).
 
 The app is local-only: `pnpm dev` and `pnpm start` bind to loopback, and requests using non-local hostnames or
 cross-origin API writes are rejected. Do not expose the app through a LAN address or reverse proxy without adding
@@ -28,7 +31,7 @@ authentication and CSRF protection for that deployment.
 | `COHERE_API_KEY` / `COHERE_MODEL` | reranking baseline (RAG / rerank tests) |
 | `COHERE_RPM` | optional; Cohere calls per minute (default 10, the trial-key limit) |
 
-A judge without a key and a model is skipped. The DB lives at `~/.ollama-benchmark/bench.db` (override with `BENCH_DB_PATH`), outside the project so the dev server's file watcher never sees its writes. Migrations in `drizzle/` are applied
+A judge without a key and a model is skipped. The DB lives at `~/.ollama-bench/bench.db` (override with `BENCH_DB_PATH`), outside the project so the dev server's file watcher never sees its writes. Migrations in `drizzle/` are applied
 automatically when the DB opens.
 
 ### Secrets and security checks
@@ -41,15 +44,76 @@ automatically when the DB opens.
   one was committed, rotate it, because removing it from a later commit doesn't remove it from history.
 - **GitHub**: the `gitleaks` workflow scans every push and pull request, so a skipped hook is still caught. CodeQL
   (GitHub's default setup) checks every pull request.
-- **Local CodeQL scan**: `pnpm security:codeql` runs the JavaScript/TypeScript security-extended queries and lists
-  the findings (report in `.data/codeql/results.sarif`). It takes a few minutes, too long for a hook. It finds the
-  CLI through `$CODEQL`, the PATH or `%LOCALAPPDATA%\codeql`, and downloads the query packs on first use.
+- **Local security checks**, each with a Run and Debug entry in the **security** group. Usage, options and how to
+  act on findings: [scripts/README.md](scripts/README.md#security-checks).
+  - `pnpm security:codeql` (`security:codeql`): CodeQL's security-extended queries on the sources. It takes 15–20
+    minutes, too long for a hook. `--report md,html` writes a readable report.
+  - `pnpm audit --prod` (`security:audit`): known vulnerabilities in the production dependencies of
+    `pnpm-lock.yaml`.
+  - `docker scout cves --only-fixed ollama-bench:local` (`security:scout`): CVEs in everything the
+    [Docker image](#docker) ships: Alpine packages, Node and the npm packages. Rebuild the image first.
+  - `pnpm security:secrets` (`security:secrets`): gitleaks on the whole history, the working tree (git-ignored files
+    included) and the Docker image. It also searches for the values in `.env` / `.env.docker` wherever they were
+    copied. It writes a Markdown report every time (`.data/gitleaks/report.md`).
+
+## Docker
+
+The [Dockerfile](Dockerfile) builds the production app on `node:24-alpine`, for running it in a container on this
+machine. In VS Code, **`docker:run`** (Run and Debug) builds the image (`docker:build` task) and starts it on
+http://localhost:3300. On the command line:
+
+```bash
+docker build --pull --secret id=env,src=.env.docker -t ollama-bench:local .
+docker run --rm --name ollama-bench-local --hostname ollama-bench-local -p 127.0.0.1:3300:3000 \
+  --add-host=host.docker.internal:host-gateway -v "$PWD/.env.docker:/app/.env:ro" ollama-bench:local
+```
+
+- **Names:** the image is `<folder>:local` and the container (and its hostname) `<folder>-local`, where `<folder>`
+  is the workspace folder name: `ollama-bench:local` and `ollama-bench-local` here. The VS Code tasks and launch
+  entries derive them from `${workspaceFolderBasename}`, and `pnpm security:secrets` uses the same default. Docker
+  names must be lowercase, so keep the folder name lowercase.
+- **Settings:** create `.env.docker` from `.env.example` before the first build (git-ignored like every `.env*`
+  file). Services running on this machine are reached as `host.docker.internal`, e.g.
+  `OLLAMA_HOST=host.docker.internal`. The file is mounted as the server's `.env` at run time and given to
+  `next build` as a BuildKit secret. Neither copy is stored in the image, and `.dockerignore` keeps `.env*` out of
+  the build context.
+- **Loopback only:** the port is published on `127.0.0.1`. Inside the container the server must listen on every
+  interface for Docker to reach it, and the app has no authentication.
+- **History:** the database lives in the container (`/home/node/.ollama-bench/bench.db`), so `--rm` throws it
+  away. To keep it, add `-v ollama-bench-db:/home/node/.ollama-bench`.
+- **Not in the image:**
+  - The downloaded public benchmarks (`.data/datasets/`). Mount them with
+    `-v "$PWD/.data/datasets:/app/.data/datasets:ro"` to run OmniDocBench, BFCL or MMMU-Pro.
+  - The Docker CLI. Terminal-Bench and web search start containers of their own, so they don't work from inside
+    this one.
+- **Contents:** Next's standalone output (`output: 'standalone'` in `next.config.ts`), about 400 MB. It holds
+  `server.js` with only the `node_modules` the server loads, running as the non-root `node` user. The rest:
+  - **Files read by path:** migrations, fixtures and the sample files are listed in `outputFileTracingIncludes`.
+  - **The MCP test's server** (`scripts/mcp/benchmark-server.mjs`) runs as its own Node process, so Next doesn't
+    trace its imports. The build bundles it with esbuild into one self-contained file.
+  - **SDK versions:** Turbopack compiles `ai` and the providers into the server code, so their `package.json` files
+    aren't there. The versions each session records come from the build (`next.config.ts` `env`).
+  - **Removed:** npm, corepack, yarn, the C headers and the APK index cache. The server doesn't use them, and they
+    only added CVEs or secret-scan false positives.
+
+  Locally, `pnpm start` (`next start`) still works with this config, and prints a warning that standalone output
+  should use `node .next/standalone/server.js`.
 
 ## How a run works
 
 1. Choose a test, a language and 1–2 models. The list only shows models whose Ollama capabilities match the test.
 2. Models run **one at a time**: each model is warmed up first (load time is reported separately), then every case
-   is streamed. Metrics: latency, time to first token, tokens/s (from Ollama's `eval_duration`), reasoning tokens.
+   is streamed. Metrics: latency, time to first token, tokens/s (from Ollama's `eval_duration`), reasoning tokens,
+   and **execution time**. Execution time measures only the model's work, never the automatic checks, the judges or
+   time spent queued:
+   - **per case:** the whole case, so every model call, tool call and test step (for Terminal-Bench, the container,
+     agent loop and verifier);
+   - **per model run:** warm-up + preparation + its cases;
+   - **per session:** the sum of its runs.
+
+   It's shown on the dashboard (recent runs), on the session page (header, each model, each case), in the
+   leaderboards and run tables, and in the CSV export (`exec_ms`). Runs recorded before it was measured show the run's
+   start → end, which never included judging (it runs alongside the next generation); their cases show none.
 3. Automatic checks (format, limits, exact answers, language) produce the **Auto** score (0–10).
 4. Each judge scores every answer **blind**, on 0–10 with per-criterion detail. A run reports **each judge's mean
    and their average**. Judgments are cached by (rubric, judge model, prompt + response).
@@ -256,6 +320,8 @@ pnpm bench --capabilities vision,tools --tier small   # every test of these capa
 pnpm bench --help
 ```
 
+Every option is listed in [scripts/README.md](scripts/README.md#pnpm-bench).
+
 `--capabilities` takes the capability → tests mapping (`src/config/capabilities.ts`) from the app it talks to
 (`/api/tests`), so it matches that build, and a test added to a capability there is included without touching the
 CLI. An older build that doesn't report it falls back to the local checkout's config, with a warning. It combines
@@ -288,11 +354,22 @@ everything already done.
 + smoke) and "AI SDK: update + verify". Then "Bench: re-run after SDK update" (`pnpm bench --skip-existing`) re-runs
 every combination whose last run used other `ai` / `ai-sdk-ollama` versions. Every session records the installed
 versions of `ai`, `@ai-sdk/*`, `ai-sdk-ollama` and the `ollama` JS client (session header, run tables, CSV), so score
-changes can be traced to a library update. `.vscode/launch.json` (Run and Debug) has `ai-sdk:update` (update packages,
-then smoke test), `bench:dry-run` (`pnpm bench --skip-existing --dry-run`), `dev`, `start`, and `bench:quick`. The
-last one builds and starts the production server on :3000 (task "App: build + start (production)", left running in
-its terminal), then runs `pnpm bench --subset quick --lang en --judges openai --skip-existing`. Stop any other app
-server first: :3000 must be free, and benchmarks must run from one server at a time.
+changes can be traced to a library update.
+
+`.vscode/launch.json` (Run and Debug) groups its entries in three groups:
+
+- **run:** `dev`, `start`, and `docker:run` (see [Docker](#docker)).
+- **bench:**
+  - `bench:dry-run` (`pnpm bench --skip-existing --dry-run`).
+  - `bench:quick` builds and starts the production server on :3000 (task "App: build + start (production)", left
+    running in its terminal), then runs `pnpm bench --subset quick --lang en --judges openai --skip-existing`.
+  - `bench:terminal-bench` uses the same server and runs the quick Terminal-Bench tasks.
+  - `ai-sdk:update` updates the packages, then runs the smoke test.
+- **security:** `security:audit`, `security:scout`, `security:secrets` and `security:codeql` (see
+  [scripts/README.md](scripts/README.md#security-checks)).
+
+Before the bench entries, stop any other app server: :3000 must be free, and benchmarks must run from one server at
+a time.
 
 ## Public benchmarks (OmniDocBench, BFCL, MMMU-Pro)
 

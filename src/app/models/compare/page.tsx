@@ -1,13 +1,13 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { connection } from 'next/server';
-import { compareModels, modelIndex, type ModelComparison } from '@/lib/queries';
+import { compareModels, modelIndex, type ModelComparison, type SpeedCell } from '@/lib/queries';
 import { LANGUAGES } from '@/config/languages';
 import { CompareForm } from '@/components/compare-form';
-import { CompareHistoryChart, CompareLegend, CompareRadar, type CompareAxis } from '@/components/charts';
+import { CompareHistoryChart, CompareLegend, CompareRadar, CompareSpeed, type CompareAxis, type SpeedAxis } from '@/components/charts';
 import { LinkTabs, hrefWith } from '@/components/link-tabs';
 import { modelHref } from '@/components/leaderboard-table';
-import { fmtNum } from '@/components/score';
+import { fmtDuration, fmtNum } from '@/components/score';
 
 const str = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
@@ -47,6 +47,54 @@ async function CompareView({ searchParams }: { searchParams: PageProps<'/models/
 
 const sign = (d: number) => (d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1));
 
+/** table columns: label + score (A, B, Δ) + tokens/s (A, B) + avg case time (A, B) */
+const COLS = 8;
+
+/** Sub-headers of a column group: each model's swatch and name (the swatches match the charts), plus Δ for scores. */
+function ModelHeads({ names, delta }: { names: [string, string]; delta: boolean }) {
+  return (
+    <>
+      {names.map((n, i) => (
+        <th key={n} className={`px-3 pb-2 text-right font-medium normal-case ${i === 0 ? 'border-l border-line' : ''}`} title={n}>
+          <span className="inline-flex max-w-[11rem] items-center justify-end gap-1.5">
+            <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: `var(--series-${i + 1})` }} />
+            <span className="truncate">{n}</span>
+          </span>
+        </th>
+      ))}
+      {delta && (
+        <th className="px-4 pb-2 text-right font-medium" title="first model minus second model">
+          Δ
+        </th>
+      )}
+    </>
+  );
+}
+
+/** Tokens/s and average case time of both models; an estimated time is marked ≈, an outdated result struck through. */
+function SpeedCells({ a, b, stale = [false, false] }: { a?: SpeedCell; b?: SpeedCell; stale?: [boolean, boolean] }) {
+  const cls = (i: number, first: boolean) =>
+    `px-3 py-1.5 text-right tabular ${first ? 'border-l border-line' : ''} ${stale[i] ? 'text-muted line-through' : ''}`;
+  return (
+    <>
+      {[a, b].map((s, i) => (
+        <td key={`tok${i}`} className={cls(i, i === 0)}>
+          {fmtNum(s?.tokPerSec)}
+        </td>
+      ))}
+      {[a, b].map((s, i) => (
+        <td
+          key={`ms${i}`}
+          className={cls(i, i === 0)}
+          title={s?.approx ? 'estimated: (run time − model load) / cases, for a run recorded before cases were timed' : undefined}
+        >
+          {s?.caseMs == null ? '–' : `${s.approx ? '≈ ' : ''}${fmtDuration(s.caseMs)}`}
+        </td>
+      ))}
+    </>
+  );
+}
+
 function Comparison({ cmp }: { cmp: ModelComparison }) {
   const [ma, mb] = cmp.models;
   const link = (p: Record<string, string>) => hrefWith('/models/compare', { a: ma.name, b: mb.name, lang: cmp.lang, ...p });
@@ -58,6 +106,17 @@ function Comparison({ cmp }: { cmp: ModelComparison }) {
   const testAxes: CompareAxis[] = cmp.tests
     .filter((t) => t.a && !t.a.stale && t.a.score != null && t.b && !t.b.stale && t.b.score != null)
     .map((t) => ({ axis: t.name.replace(/\s*\(.*\)$/, ''), a: t.a!.score, b: t.b!.score }));
+  // speed: per test, current results only (as the radar); a chart draws a test where both models have the measure
+  const speedAxes: SpeedAxis[] = cmp.tests
+    .filter((t) => t.a && !t.a.stale && t.b && !t.b.stale)
+    .map((t) => ({
+      axis: t.name.replace(/\s*\(.*\)$/, ''),
+      aTok: t.speed.a?.tokPerSec ?? null,
+      bTok: t.speed.b?.tokPerSec ?? null,
+      aMs: t.speed.a?.caseMs ?? null,
+      bMs: t.speed.b?.caseMs ?? null,
+    }));
+  const anyApprox = cmp.tests.some((t) => t.speed.a?.approx || t.speed.b?.approx);
   const history = cmp.history.filter((h) => h.lang === cmp.lang);
 
   return (
@@ -106,21 +165,49 @@ function Comparison({ cmp }: { cmp: ModelComparison }) {
         </section>
       </div>
 
+      <section className="rounded-lg border border-line bg-panel p-4">
+        <div className="mb-2 flex flex-wrap items-baseline gap-3">
+          <h2 className="font-semibold">Speed by test</h2>
+          <CompareLegend a={ma.name} b={mb.name} />
+        </div>
+        <CompareSpeed axes={speedAxes} a={ma.name} b={mb.name} />
+        <p className="mt-2 text-xs text-muted">
+          Same results as the scores. Case execution time covers the whole case (every model call, tool call and test step); automatic
+          checks and judging are left out.
+          {anyApprox && ' Runs recorded before cases were timed are estimated as (run time − model load) / cases, marked ≈ in the table.'}
+        </p>
+      </section>
+
       <section className="overflow-x-auto rounded-lg border border-line bg-panel">
         <table className="w-full text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-muted">
-            <tr className="border-b border-line">
-              <th className="px-4 py-2 font-medium"> </th>
-              <th className="px-3 py-2 text-right font-medium normal-case">{ma.name}</th>
-              <th className="px-3 py-2 text-right font-medium normal-case">{mb.name}</th>
-              <th className="px-4 py-2 text-right font-medium" title="first model minus second model">
-                Δ
+            <tr>
+              <th className="px-4 pt-2 font-medium" rowSpan={2}>
+                {' '}
               </th>
+              <th colSpan={3} className="border-l border-line px-3 pt-2 text-center font-medium">
+                Score
+              </th>
+              <th colSpan={2} className="border-l border-line px-3 pt-2 text-center font-medium">
+                Tokens/s
+              </th>
+              <th
+                colSpan={2}
+                className="border-l border-line px-3 pt-2 text-center font-medium"
+                title="Average execution time of one case: checks and judging excluded"
+              >
+                Avg case time
+              </th>
+            </tr>
+            <tr className="border-b border-line">
+              {[0, 1, 2].map((g) => (
+                <ModelHeads key={g} names={[ma.name, mb.name]} delta={g === 0} />
+              ))}
             </tr>
           </thead>
           <tbody>
             <tr className="border-b border-line bg-code/50">
-              <td colSpan={4} className="px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+              <td colSpan={COLS} className="px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted">
                 Capabilities
               </td>
             </tr>
@@ -145,10 +232,11 @@ function Comparison({ cmp }: { cmp: ModelComparison }) {
                   <td className="px-4 py-1.5 text-right tabular text-muted">
                     {c.a?.score != null && c.b?.score != null ? sign(c.a.score - c.b.score) : ''}
                   </td>
+                  <SpeedCells a={c.speed.a} b={c.speed.b} />
                 </tr>
               ))}
             <tr className="border-b border-line bg-code/50">
-              <td colSpan={4} className="px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+              <td colSpan={COLS} className="px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted">
                 Tests
               </td>
             </tr>
@@ -179,6 +267,7 @@ function Comparison({ cmp }: { cmp: ModelComparison }) {
                   <td className="px-4 py-1.5 text-right tabular text-muted">
                     {t.a && t.b && !t.a.stale && !t.b.stale && t.a.score != null && t.b.score != null ? sign(t.a.score - t.b.score) : ''}
                   </td>
+                  <SpeedCells a={t.speed.a} b={t.speed.b} stale={[!!t.a?.stale, !!t.b?.stale]} />
                 </tr>
               ))}
           </tbody>

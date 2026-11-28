@@ -19,6 +19,8 @@ export interface CaseMetrics {
   tokensOut?: number;
   reasoningTokens?: number;
   tokPerSec?: number;
+  /** wall time of the whole case: set by the runner, not by tests (see case_results.exec_ms) */
+  execMs?: number;
 }
 
 export interface CaseOutput extends CaseMetrics {

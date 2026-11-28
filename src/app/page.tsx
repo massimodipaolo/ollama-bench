@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { connection } from 'next/server';
 import { bestPerModel, capabilityBoard, capabilityOverview, leaderboard, recentSessions } from '@/lib/queries';
 import { listTests, type TestSummary } from '@/lib/tests/registry';
-import { Score } from '@/components/score';
+import { Score, fmtDuration } from '@/components/score';
 import { LeaderboardTable } from '@/components/leaderboard-table';
 import { TierFilter } from '@/components/tier-filter';
 import { LinkTabs, hrefWith } from '@/components/link-tabs';
@@ -278,6 +278,14 @@ function RecentRuns({ recent, tests }: { recent: ReturnType<typeof recentSession
                     </span>
                   ))}
                 </span>
+                {s.execMs != null && (
+                  <span
+                    className="text-xs text-muted tabular"
+                    title="Execution time: the models' work; automatic checks, judging and time queued excluded"
+                  >
+                    {fmtDuration(s.execMs)}
+                  </span>
+                )}
                 <StatusPill status={s.status} />
               </Link>
               {s.batchId && (

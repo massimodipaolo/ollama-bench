@@ -1,11 +1,12 @@
 import 'server-only';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, schema } from '@/db';
 import type { Batch, CaseResult, Judgment, Model, Run, Session } from '@/db/schema';
 import { customCtx, getTest, isEligible, isKnownTest, listTests, sessionVariant, TESTS } from '@/lib/tests/registry';
 import { CAPABILITIES, getCapability } from '@/config/capabilities';
 import { inTier, type Tier } from '@/lib/tiers';
 import { sdkLabel } from '@/lib/versions';
+import { runExecMs, sessionExecMs } from '@/lib/timing';
 
 export interface RunDetail extends Run {
   model: Model;
@@ -61,6 +62,8 @@ export interface SessionListItem {
   subset: string;
   variant: string;
   batchId: string | null;
+  /** total execution time (see lib/timing.ts); null until the session has finished */
+  execMs: number | null;
   runs: { model: string; judgeAvg: number | null; autoScore: number | null; avgTokPerSec: number | null }[];
 }
 
@@ -93,25 +96,36 @@ export function recentSessions(limit = 20, testId?: string): SessionListItem[] {
     )
     .orderBy(schema.runs.id)
     .all();
-  return sessions.map((s) => ({
-    id: s.id,
-    testId: s.testId,
-    lang: s.lang,
-    status: s.status,
-    createdAt: s.createdAt,
-    subset: s.config.subset,
-    variant: sessionVariant(s.testId, s.config),
-    batchId: s.batchId,
-    runs: runs
-      .filter((r) => r.run.sessionId === s.id)
-      .map((r) => ({ model: r.model.name, judgeAvg: r.run.judgeAvg, autoScore: r.run.autoScore, avgTokPerSec: r.run.avgTokPerSec })),
-  }));
+  return sessions.map((s) => {
+    const mine = runs.filter((r) => r.run.sessionId === s.id);
+    return {
+      id: s.id,
+      testId: s.testId,
+      lang: s.lang,
+      status: s.status,
+      createdAt: s.createdAt,
+      subset: s.config.subset,
+      variant: sessionVariant(s.testId, s.config),
+      batchId: s.batchId,
+      execMs: sessionExecMs(
+        s,
+        mine.map((r) => r.run),
+      ),
+      runs: mine.map((r) => ({
+        model: r.model.name,
+        judgeAvg: r.run.judgeAvg,
+        autoScore: r.run.autoScore,
+        avgTokPerSec: r.run.avgTokPerSec,
+      })),
+    };
+  });
 }
 
 export interface LeaderboardRow {
   modelId: number;
   /** session of the run shown (the latest judged one) */
   sessionId: string;
+  runId: number;
   suiteVersion: string;
   capabilities: string[];
   lang: string;
@@ -128,6 +142,9 @@ export interface LeaderboardRow {
   autoScore: number | null;
   avgTokPerSec: number | null;
   avgLatencyMs: number | null;
+  /** execution time of the run shown (see lib/timing.ts), on its case set */
+  execMs: number | null;
+  subset: string;
   /** num_ctx when it isn't the test's default (the num_ctx part of `variant`) */
   numCtx: number | null;
   /** set by bestPerModel: the model's other leaderboard rows (languages, variants, digests) folded into this one */
@@ -187,6 +204,7 @@ export function leaderboard(testId: string, lang?: string): LeaderboardRow[] {
     byModel.set(key, {
       modelId: model.id,
       sessionId: session.id,
+      runId: run.id,
       suiteVersion: session.suiteVersion,
       capabilities: model.capabilities,
       lang: session.lang,
@@ -203,6 +221,8 @@ export function leaderboard(testId: string, lang?: string): LeaderboardRow[] {
       autoScore: run.autoScore,
       avgTokPerSec: run.avgTokPerSec,
       avgLatencyMs: run.avgLatencyMs,
+      execMs: runExecMs(run),
+      subset: session.config.subset,
       numCtx: customCtx(session.testId, session.config),
     });
   }
@@ -236,6 +256,8 @@ export interface RunRow {
   avgTtftMs: number | null;
   avgTokPerSec: number | null;
   loadMs: number | null;
+  /** execution time of the run (see lib/timing.ts) */
+  execMs: number | null;
   stats: Record<string, number | string> | null;
   ollamaVersion: string | null;
   sdk: Record<string, string>;
@@ -284,6 +306,7 @@ export function runRows(filter: { testId?: string; model?: string; includeUnfini
       avgTtftMs: run.avgTtftMs,
       avgTokPerSec: run.avgTokPerSec,
       loadMs: run.loadMs,
+      execMs: runExecMs(run),
       stats: run.stats ?? null,
       ollamaVersion: session.config.ollamaVersion ?? null,
       sdk: session.config.sdk ?? {},
@@ -345,6 +368,7 @@ export function modelIndex(): ModelIndexRow[] {
 export interface CapabilityCell {
   score: number | null;
   sessionId: string;
+  runId: number;
   lastRunAt: number;
   /** from an older suite version of the test (cases changed since): shown, but not counted */
   stale: boolean;
@@ -427,6 +451,7 @@ export async function capabilityBoard(capabilityId: string, lang: string, tier: 
       row.cells[t.id] = {
         score: mainScore(r),
         sessionId: r.sessionId,
+        runId: r.runId,
         lastRunAt: r.lastRunAt,
         stale,
         tokPerSec: r.avgTokPerSec,
@@ -678,17 +703,63 @@ export interface CompareSide<T> {
   a: T | undefined;
   b: T | undefined;
 }
+/** Speed of a result: generation throughput and how long one case takes on average. */
+export interface SpeedCell {
+  /** tokens/s; null for tests that don't generate text (embeddings, reranking) */
+  tokPerSec: number | null;
+  /** average execution time of one case (case_results.exec_ms: checks and judging excluded) */
+  caseMs: number | null;
+  /**
+   * caseMs estimated for runs recorded before cases were timed: (run start → end − model load) / cases. Close, but it
+   * includes the test's preparation (e.g. a RAG index build) and the automatic checks.
+   */
+  approx: boolean;
+}
+
 export interface ModelComparison {
   models: [ModelIndexRow, ModelIndexRow];
   /** Ollama capabilities both models have */
   commonCapabilities: string[];
   lang: string;
-  /** capability scores (as on the dashboard's capability view) */
-  capabilities: ({ id: string; label: string } & CompareSide<OverviewCell>)[];
-  /** latest current-suite, default-variant score per test (as in the capability tables) */
-  tests: ({ id: string; name: string } & CompareSide<CapabilityCell>)[];
+  /** capability scores (as on the dashboard's capability view); speed: mean over the capability's current results */
+  capabilities: ({ id: string; label: string; speed: CompareSide<SpeedCell> } & CompareSide<OverviewCell>)[];
+  /** latest current-suite, default-variant score per test (as in the capability tables), and that run's speed */
+  tests: ({ id: string; name: string; speed: CompareSide<SpeedCell> } & CompareSide<CapabilityCell>)[];
   /** every run of either model, per (test, language, variant) */
   history: ({ key: string; testId: string; testName: string; lang: string; variant: string } & { a: ComparePoint[]; b: ComparePoint[] })[];
+}
+
+/**
+ * Average execution time of one case, per run: the mean of the measured case times (case_results.exec_ms), or, for
+ * runs recorded before cases were timed, (run start → end − model load) / cases, flagged as approximate.
+ */
+function avgCaseExecByRun(runIds: number[]): Map<number, { ms: number; approx: boolean }> {
+  const out = new Map<number, { ms: number; approx: boolean }>();
+  if (!runIds.length) return out;
+  const db = getDb();
+  const agg = new Map(
+    db
+      .select({
+        runId: schema.caseResults.runId,
+        avg: sql<number | null>`avg(${schema.caseResults.execMs})`, // nulls (skipped cases, old results) left out
+        cases: sql<number>`count(*)`,
+      })
+      .from(schema.caseResults)
+      .where(inArray(schema.caseResults.runId, runIds))
+      .groupBy(schema.caseResults.runId)
+      .all()
+      .map((a) => [a.runId, a]),
+  );
+  for (const run of db.select().from(schema.runs).where(inArray(schema.runs.id, runIds)).all()) {
+    const a = agg.get(run.id);
+    if (a?.avg != null) {
+      out.set(run.id, { ms: a.avg, approx: false });
+      continue;
+    }
+    const total = runExecMs(run);
+    if (total != null && a?.cases) out.set(run.id, { ms: Math.max(0, total - (run.loadMs ?? 0)) / a.cases, approx: true });
+  }
+  return out;
 }
 
 /** Everything the compare page shows for two models; null when either name is unknown. */
@@ -701,22 +772,48 @@ export async function compareModels(aName: string, bName: string, lang: string):
   const testName = (id: string) => summaries.find((t) => t.id === id)?.name ?? id;
 
   const overview = await capabilityOverview(lang);
+  const boards = new Map<string, CapabilityBoard | null>();
+  for (const c of CAPABILITIES) boards.set(c.id, await capabilityBoard(c.id, lang));
+
+  // average case time of every run the comparison shows
+  const shownRuns = [...boards.values()].flatMap((bd) =>
+    (bd?.rows ?? [])
+      .filter((r) => r.model === aName || r.model === bName)
+      .flatMap((r) => Object.values(r.cells).map((c) => c?.runId))
+      .filter((id): id is number => id != null),
+  );
+  const caseTimes = avgCaseExecByRun([...new Set(shownRuns)]);
+  const speedOf = (c: CapabilityCell | undefined): SpeedCell | undefined =>
+    c && { tokPerSec: c.tokPerSec, caseMs: caseTimes.get(c.runId)?.ms ?? null, approx: !!caseTimes.get(c.runId)?.approx };
+
+  const tests: ModelComparison['tests'] = [];
+  for (const c of CAPABILITIES) {
+    const board = boards.get(c.id);
+    for (const t of board?.tests ?? []) {
+      if (tests.some((x) => x.id === t.id)) continue; // a test can sit in two capabilities (rag)
+      const cell = (m: string) => board!.rows.find((r) => r.model === m)?.cells[t.id];
+      tests.push({ id: t.id, name: t.name, a: cell(aName), b: cell(bName), speed: { a: speedOf(cell(aName)), b: speedOf(cell(bName)) } });
+    }
+  }
+
+  // a capability's speed: the mean over its current (non-stale) results, like its score
+  const capSpeed = (capId: string, m: string): SpeedCell | undefined => {
+    const row = boards.get(capId)?.rows.find((r) => r.model === m);
+    const speeds = Object.values(row?.cells ?? {})
+      .filter((c): c is CapabilityCell => !!c && !c.stale)
+      .map(speedOf)
+      .filter((s): s is SpeedCell => !!s);
+    if (!speeds.length) return undefined;
+    const pick = (k: 'tokPerSec' | 'caseMs') => mean(speeds.map((s) => s[k]).filter((x): x is number => x != null));
+    return { tokPerSec: pick('tokPerSec'), caseMs: pick('caseMs'), approx: speeds.some((s) => s.approx && s.caseMs != null) };
+  };
   const capabilities = CAPABILITIES.map((c) => ({
     id: c.id,
     label: c.label,
     a: overview.find((r) => r.model === aName)?.scores[c.id],
     b: overview.find((r) => r.model === bName)?.scores[c.id],
+    speed: { a: capSpeed(c.id, aName), b: capSpeed(c.id, bName) },
   }));
-
-  const tests: ModelComparison['tests'] = [];
-  for (const c of CAPABILITIES) {
-    const board = await capabilityBoard(c.id, lang);
-    for (const t of board?.tests ?? []) {
-      if (tests.some((x) => x.id === t.id)) continue; // a test can sit in two capabilities (rag)
-      const cell = (m: string) => board!.rows.find((r) => r.model === m)?.cells[t.id];
-      tests.push({ id: t.id, name: t.name, a: cell(aName), b: cell(bName) });
-    }
-  }
 
   const point = (r: RunRow): ComparePoint => ({
     t: r.date,

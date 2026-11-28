@@ -1,4 +1,4 @@
-# Ollama Benchmark — Plan
+# ollama-bench — Plan
 
 Benchmark the Ollama models on `OLLAMA_HOST` across several kinds of test. Compare 1–2 models per run. Three blind
 judges (OpenAI, Google, Anthropic) score each run. Results are stored in a local SQLite database to build a history.

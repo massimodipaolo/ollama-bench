@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { RunRow } from '@/lib/queries';
-import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtMs, fmtNum } from '@/components/score';
+import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtDuration, fmtMs, fmtNum } from '@/components/score';
 import { modelHref } from '@/components/leaderboard-table';
 
 /** Every run, newest first; one row per model run, linking to its session. */
@@ -25,6 +25,12 @@ export function RunsTable({ runs, show }: { runs: RunRow[]; show: 'model' | 'tes
             <th className="px-3 py-2 text-right font-medium">Auto</th>
             <th className="px-3 py-2 text-right font-medium">tok/s</th>
             <th className="px-3 py-2 text-right font-medium">Latency</th>
+            <th
+              className="px-3 py-2 text-right font-medium"
+              title="Execution time of the run: warm-up, preparation and every case; checks and judging excluded"
+            >
+              Exec time
+            </th>
             <th className="px-4 py-2 font-medium">Digest · suite · SDK</th>
           </tr>
         </thead>
@@ -67,6 +73,7 @@ export function RunsTable({ runs, show }: { runs: RunRow[]; show: 'model' | 'tes
               </td>
               <td className="px-3 py-2 text-right tabular">{fmtNum(r.avgTokPerSec)}</td>
               <td className="px-3 py-2 text-right tabular">{fmtMs(r.avgLatencyMs)}</td>
+              <td className="px-3 py-2 text-right tabular">{fmtDuration(r.execMs)}</td>
               <td className="px-4 py-2 font-mono text-xs text-muted">
                 {r.digest.slice(0, 8) || '–'} · {r.suiteVersion}
                 {r.sdkLabel && <div className="whitespace-nowrap">{r.sdkLabel}</div>}

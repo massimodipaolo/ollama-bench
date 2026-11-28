@@ -334,6 +334,176 @@ export function CompareRadar({ axes, a, b }: { axes: CompareAxis[]; a: string; b
   );
 }
 
+export interface SpeedAxis {
+  axis: string;
+  /** tokens/s; null = not measured for that model on this test */
+  aTok: number | null;
+  bTok: number | null;
+  /** average execution time of one case, ms */
+  aMs: number | null;
+  bMs: number | null;
+}
+
+type SpeedRow = { axis: string; a: number; b: number };
+const fmtTok = (v: number) => `${v.toFixed(1)} tok/s`;
+/** seconds, from milliseconds to hours: 0.85 s · 12.3 s · 4m 05s */
+const fmtSec = (s: number) => {
+  if (s < 60) return `${s < 10 ? s.toFixed(2) : s.toFixed(1)} s`;
+  const r = Math.round(s);
+  return r < 3600
+    ? `${Math.floor(r / 60)}m ${String(r % 60).padStart(2, '0')}s`
+    : `${Math.floor(r / 3600)}h ${String(Math.floor((r % 3600) / 60)).padStart(2, '0')}m`;
+};
+const SPEED_X_DOMAIN: [number, (max: number) => number] = [0, niceMax];
+
+function SpeedTip({ active, payload, label, fmt }: TipProps & { fmt: (v: number) => string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={TOOLTIP_CONTENT} className="px-2.5 py-1.5">
+      <div className="font-medium">{String(label ?? '')}</div>
+      {payload.map((p, i) => (
+        <div key={i} className="text-muted">
+          {String(p.name)} <span className="text-fg tabular">{typeof p.value === 'number' ? fmt(p.value) : '–'}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Every other row (test) of a per-test chart, faintly shaded, so the two models' marks of one test read as a pair
+ * even when they sit far apart. The grid's horizontal lines go on the row boundaries (not the row centres, where a
+ * category axis puts them), and its stripes fill between them: transparent, shaded, transparent…
+ */
+const ROW_STRIPES = ['transparent', 'var(--fg)'];
+const ROW_STRIPE_OPACITY = 0.045;
+function useRowBoundaries(rows: number) {
+  return useCallback(
+    ({ offset }: { offset: { top?: number; height?: number } }) =>
+      Array.from({ length: rows + 1 }, (_, i) => Math.round((offset.top ?? 0) + ((offset.height ?? 0) * i) / rows)),
+    [rows],
+  );
+}
+
+/** One measure, both models, one horizontal bar pair per test (bars start at zero: lengths compare). */
+function SpeedBars({ rows, a, b, fmt }: { rows: SpeedRow[]; a: string; b: string; fmt: (v: number) => string }) {
+  const tip = useCallback((p: TipProps) => <SpeedTip {...p} fmt={fmt} />, [fmt]);
+  const boundaries = useRowBoundaries(rows.length);
+  return (
+    <div className="w-full" style={{ height: 40 + rows.length * 44 }}>
+      <ResponsiveContainer>
+        <BarChart data={rows} layout="vertical" margin={BAR_MARGIN} barGap={2} barCategoryGap={10}>
+          <CartesianGrid
+            stroke="var(--grid)"
+            strokeWidth={1}
+            horizontalCoordinatesGenerator={boundaries}
+            horizontalFill={ROW_STRIPES}
+            fillOpacity={ROW_STRIPE_OPACITY}
+          />
+          <XAxis type="number" domain={SPEED_X_DOMAIN} tick={AXIS_TICK} stroke="var(--axis)" tickLine={false} />
+          <YAxis type="category" dataKey="axis" tick={AXIS_TICK} stroke="var(--axis)" tickLine={false} width={120} />
+          <Tooltip cursor={false} content={tip} />
+          <Bar dataKey="a" name={a} fill="var(--series-1)" radius={BAR_RADIUS} isAnimationActive={false} />
+          <Bar dataKey="b" name={b} fill="var(--series-2)" radius={BAR_RADIUS} isAnimationActive={false} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Ticks the log time axis may use, in seconds (10 ms … 1 h); the ones spanning the data are shown. */
+const LOG_TICKS = [0.01, 0.1, 1, 10, 60, 600, 3600];
+const logTick = (s: number) => (s >= 3600 ? `${s / 3600}h` : s >= 60 ? `${s / 60}m` : `${s}s`);
+
+type ShapeProps = { x?: number; y?: number; width?: number; height?: number };
+/** A dot at the value end of a bar: on a log axis a bar's length means nothing, its end position does. */
+const dotAt = (fill: string) =>
+  function SpeedDot({ x = 0, y = 0, width = 0, height = 0 }: ShapeProps) {
+    return <circle cx={x + width} cy={y + height / 2} r={5} fill={fill} stroke="var(--panel)" strokeWidth={2} />;
+  };
+const DOT_SHAPE_A = dotAt('var(--series-1)');
+const DOT_SHAPE_B = dotAt('var(--series-2)');
+
+/**
+ * Seconds per test for both models as a dot plot on a log axis: case times span milliseconds (embeddings) to minutes
+ * (Terminal-Bench), which a linear axis squeezes to nothing. Dots, not bars: a bar on a log axis starts at an
+ * arbitrary minimum, so its length would mislead.
+ */
+function SpeedDots({ rows, a, b }: { rows: SpeedRow[]; a: string; b: string }) {
+  const tip = useCallback((p: TipProps) => <SpeedTip {...p} fmt={fmtSec} />, []);
+  const { domain, ticks } = useMemo(() => {
+    const vals = rows.flatMap((r) => [r.a, r.b]);
+    const [min, max] = [Math.min(...vals), Math.max(...vals)];
+    const lo = [...LOG_TICKS].reverse().find((t) => t <= min) ?? min;
+    const hi = LOG_TICKS.find((t) => t >= max) ?? max;
+    return { domain: [lo, hi] as [number, number], ticks: LOG_TICKS.filter((t) => t >= lo && t <= hi) };
+  }, [rows]);
+  const boundaries = useRowBoundaries(rows.length);
+  return (
+    <div className="w-full" style={{ height: 40 + rows.length * 44 }}>
+      <ResponsiveContainer>
+        <BarChart data={rows} layout="vertical" margin={BAR_MARGIN} barGap={2} barCategoryGap={10}>
+          <CartesianGrid
+            stroke="var(--grid)"
+            strokeWidth={1}
+            horizontalCoordinatesGenerator={boundaries}
+            horizontalFill={ROW_STRIPES}
+            fillOpacity={ROW_STRIPE_OPACITY}
+          />
+          <XAxis
+            type="number"
+            scale="log"
+            domain={domain}
+            ticks={ticks}
+            tickFormatter={logTick}
+            allowDataOverflow
+            tick={AXIS_TICK}
+            stroke="var(--axis)"
+            tickLine={false}
+          />
+          <YAxis type="category" dataKey="axis" tick={AXIS_TICK} stroke="var(--axis)" tickLine={false} width={120} />
+          <Tooltip cursor={false} content={tip} />
+          <Bar dataKey="a" name={a} fill="var(--series-1)" shape={DOT_SHAPE_A} isAnimationActive={false} />
+          <Bar dataKey="b" name={b} fill="var(--series-2)" shape={DOT_SHAPE_B} isAnimationActive={false} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/**
+ * Speed of two models per test, as two charts with their own axes (never one chart with two scales): generation
+ * throughput (higher is faster, bars on a linear axis) and the average time of one case (lower is faster, dots on a
+ * log axis). A test is drawn where both models have the measure.
+ */
+export function CompareSpeed({ axes, a, b }: { axes: SpeedAxis[]; a: string; b: string }) {
+  const tok = useMemo(
+    () => axes.filter((x) => x.aTok != null && x.bTok != null).map((x) => ({ axis: x.axis, a: x.aTok!, b: x.bTok! })),
+    [axes],
+  );
+  const time = useMemo(
+    // a log axis has no zero: a time of 0 (an estimate floored at zero) can't be placed
+    () => axes.filter((x) => !!x.aMs && !!x.bMs).map((x) => ({ axis: x.axis, a: x.aMs! / 1000, b: x.bMs! / 1000 })),
+    [axes],
+  );
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <div>
+        <h3 className="mb-1 text-sm font-medium">
+          Tokens/s <span className="font-normal text-muted">· higher is faster</span>
+        </h3>
+        {tok.length ? <SpeedBars rows={tok} a={a} b={b} fmt={fmtTok} /> : <p className="text-xs text-muted">No tokens/s to compare.</p>}
+      </div>
+      <div>
+        <h3 className="mb-1 text-sm font-medium">
+          Avg case execution time <span className="font-normal text-muted">· lower is faster · log scale</span>
+        </h3>
+        {time.length ? <SpeedDots rows={time} a={a} b={b} /> : <p className="text-xs text-muted">No execution times to compare.</p>}
+      </div>
+    </div>
+  );
+}
+
 export interface ComparePointView {
   t: number;
   score: number | null;

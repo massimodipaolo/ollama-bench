@@ -5,43 +5,38 @@
  */
 @import 'tailwindcss' source('..');
 
+/*
+ * Theme: every token is light-dark(<light>, <dark>), resolved by `color-scheme`. By default it follows the system;
+ * the header's theme switch sets data-theme on <html> (saved in localStorage, applied before the first paint by the
+ * inline script in layout.tsx) to force one. color-scheme also themes scrollbars and native form controls.
+ */
 :root {
-  --bg: #f7f7f8;
-  --panel: #ffffff;
-  --fg: #17171a;
-  --muted: #6b6b76;
-  --line: #e4e4e9;
-  --accent: #4f46e5;
-  --accent-fg: #ffffff;
-  --good: #15803d;
-  --mid: #b45309;
-  --bad: #b91c1c;
-  --code: #f1f1f4;
-  /* charts (dataviz reference palette, validated against the panel surface) */
-  --series-1: #257de0;
-  --series-2: #f47230;
-  --grid: #e7e7e7;
-  --axis: #c2c2c2;
+  color-scheme: light dark;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d0d10;
-    --panel: #16161b;
-    --fg: #ececf1;
-    --muted: #9a9aa6;
-    --line: #2a2a33;
-    --accent: #818cf8;
-    --accent-fg: #0d0d10;
-    --good: #4ade80;
-    --mid: #fbbf24;
-    --bad: #f87171;
-    --code: #1d1d24;
-    --series-1: #338ced;
-    --series-2: #e76624;
-    --grid: #303030;
-    --axis: #474747;
-  }
+:root {
+  --bg: light-dark(#f7f7f8, #0d0d10);
+  --panel: light-dark(#ffffff, #16161b);
+  --fg: light-dark(#17171a, #ececf1);
+  --muted: light-dark(#6b6b76, #9a9aa6);
+  --line: light-dark(#e4e4e9, #2a2a33);
+  --accent: light-dark(#4f46e5, #818cf8);
+  --accent-fg: light-dark(#ffffff, #0d0d10);
+  --good: light-dark(#15803d, #4ade80);
+  --mid: light-dark(#b45309, #fbbf24);
+  --bad: light-dark(#b91c1c, #f87171);
+  --code: light-dark(#f1f1f4, #1d1d24);
+  /* charts (dataviz reference palette, validated against the panel surface of each mode) */
+  --series-1: light-dark(#257de0, #338ced);
+  --series-2: light-dark(#f47230, #e76624);
+  --grid: light-dark(#e7e7e7, #303030);
+  --axis: light-dark(#c2c2c2, #474747);
 }
 
 @theme inline {

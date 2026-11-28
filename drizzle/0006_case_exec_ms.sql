@@ -1,0 +1,1 @@
+ALTER TABLE `case_results` ADD `exec_ms` real;

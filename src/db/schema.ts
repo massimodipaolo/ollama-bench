@@ -121,6 +121,11 @@ export const runs = sqliteTable(
     stats: text('stats', { mode: 'json' }).$type<Record<string, number | string>>(),
     startedAt: integer('started_at', { mode: 'number' }),
     finishedAt: integer('finished_at', { mode: 'number' }),
+    /**
+     * The model's execution time: warm-up + preparation + every case's run (case_results.exec_ms). Automatic
+     * checks, judging and database writes are left out. Null for runs recorded before it was measured.
+     */
+    execMs: real('exec_ms'),
   },
   (t) => [index('runs_session').on(t.sessionId), index('runs_model').on(t.modelId)],
 );
@@ -150,6 +155,13 @@ export const caseResults = sqliteTable(
     tokensOut: integer('tokens_out'),
     reasoningTokens: integer('reasoning_tokens'),
     tokPerSec: real('tok_per_sec'),
+    /**
+     * Wall time of the whole case, measured by the runner around the test's run(): every model call, tool call and
+     * test step (e.g. Terminal-Bench's container, agent loop and verifier), where latencyMs is the model's generation.
+     * The automatic checks and the judges come after and aren't included. Null for results recorded before it was
+     * measured, and for skipped cases.
+     */
+    execMs: real('exec_ms'),
     autoScore: real('auto_score'),
     checks: text('checks', { mode: 'json' }).$type<CheckResult[]>(),
     error: text('error'),

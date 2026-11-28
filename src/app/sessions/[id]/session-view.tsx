@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { SessionEvent } from '@/lib/runner/events';
 import type { CheckResult, CriterionScore } from '@/db/schema';
-import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtMs, fmtNum } from '@/components/score';
+import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtDuration, fmtMs, fmtNum } from '@/components/score';
+import { runExecMs, sessionExecMs } from '@/lib/timing';
 import { PromptButton } from './prompt-button';
 import { Markdown } from '@/components/markdown';
 
@@ -56,6 +57,7 @@ interface CaseCell {
     tokensOut?: number | null;
     reasoningTokens?: number | null;
     tokPerSec?: number | null;
+    execMs?: number | null;
   };
   judgments: Record<string, JudgeCell>;
 }
@@ -73,6 +75,9 @@ interface RunState {
   judgeAvg: number | null;
   avgTokPerSec?: number | null;
   avgLatencyMs?: number | null;
+  startedAt: number | null;
+  execMs: number | null;
+  finishedAt: number | null;
   cases: Record<string, CaseCell>;
 }
 interface ViewState {
@@ -82,6 +87,7 @@ interface ViewState {
   phase?: string;
   error?: string | null;
   createdAt: number;
+  finishedAt: number | null;
   config: {
     subset: string;
     think: boolean;
@@ -108,6 +114,7 @@ function fromDetail(d: any): ViewState {
     status: d.status,
     error: d.error,
     createdAt: d.createdAt,
+    finishedAt: d.finishedAt ?? null,
     config: d.config,
     suiteVersion: d.suiteVersion,
     cases: d.cases,
@@ -126,6 +133,9 @@ function fromDetail(d: any): ViewState {
       judgeAvg: r.judgeAvg,
       avgTokPerSec: r.avgTokPerSec,
       avgLatencyMs: r.avgLatencyMs,
+      startedAt: r.startedAt ?? null,
+      execMs: r.execMs ?? null,
+      finishedAt: r.finishedAt ?? null,
       cases: Object.fromEntries(
         r.cases.map((c: any) => [
           c.caseId,
@@ -167,7 +177,17 @@ function apply(s: ViewState, e: SessionEvent): ViewState {
     case 'session':
       return { ...s, status: 'running', phase: e.status };
     case 'run-status':
-      if (run) Object.assign(run, { status: e.status, loadMs: e.loadMs ?? run.loadMs, error: e.error });
+      if (run) {
+        // live timestamps (client clock) until the reload at session end brings the stored ones
+        const at = Date.now();
+        Object.assign(run, {
+          status: e.status,
+          loadMs: e.loadMs ?? run.loadMs,
+          error: e.error,
+          startedAt: run.startedAt ?? at,
+          finishedAt: e.status === 'done' || e.status === 'error' ? at : run.finishedAt,
+        });
+      }
       break;
     case 'case-start':
       if (run) run.cases[e.caseId] = { status: 'running', output: '', checks: [], autoScore: null, metrics: {}, judgments: {} };
@@ -212,7 +232,7 @@ function apply(s: ViewState, e: SessionEvent): ViewState {
       if (run) Object.assign(run, { autoScore: e.autoScore, judgeScores: e.judgeScores, judgeAvg: e.judgeAvg });
       break;
     case 'session-end':
-      return { ...s, runs, status: e.status, error: e.error, phase: undefined };
+      return { ...s, runs, status: e.status, error: e.error, phase: undefined, finishedAt: Date.now() };
   }
   return { ...s, runs };
 }
@@ -262,6 +282,15 @@ export function SessionView({ id }: { id: string }) {
     };
   }, [id, liveKey]);
 
+  // a clock for the live execution times, ticking only while the session runs
+  const [now, setNow] = useState(() => Date.now());
+  const live = state?.status === 'running' || state?.status === 'queued';
+  useEffect(() => {
+    if (!live) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [live]);
+
   /** Re-ask one judge on one case (e.g. a broken verdict); the other judgments stay. */
   async function rejudgeOne(caseResultId: number, judge: string) {
     const res = await fetch(`/api/sessions/${id}/rejudge`, {
@@ -284,6 +313,18 @@ export function SessionView({ id }: { id: string }) {
   const judgeIds = JUDGE_ORDER.filter((j) => state.config.judges.includes(j));
   const caseIds = state.cases.map((c) => c.id).filter((cid) => state.runs.some((r) => r.cases[cid]));
   const extraIds = [...new Set(state.runs.flatMap((r) => Object.keys(r.cases)))].filter((x) => !caseIds.includes(x));
+  // total = the models' execution times (judging excluded): stored once finished (also while a re-judge reopens the
+  // session); while the models run, the finished runs plus the current one so far, until the judges are left
+  const modelsRunning = state.runs.some((r) => r.status === 'loading' || r.status === 'running');
+  const total =
+    state.finishedAt != null
+      ? { ms: sessionExecMs({ status: 'done' }, state.runs), live: false }
+      : running && state.runs.some((r) => r.startedAt != null)
+        ? {
+            ms: state.runs.reduce((sum, r) => sum + (runExecMs(r) ?? liveRunMs(r, now) ?? 0), 0),
+            live: modelsRunning,
+          }
+        : null;
 
   return (
     <div className="space-y-6">
@@ -318,6 +359,15 @@ export function SessionView({ id }: { id: string }) {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-3">
+          {total?.ms != null && (
+            <span
+              className="text-xs text-muted tabular"
+              title="Execution time: the models' work (warm-up, preparation, every case); automatic checks, judging and time queued excluded"
+            >
+              exec time {fmtDuration(total.ms)}
+              {total.live ? '…' : ''}
+            </span>
+          )}
           <span
             className={`text-xs font-medium uppercase ${state.status === 'done' ? 'text-good' : state.status === 'error' ? 'text-bad' : 'text-mid'}`}
           >
@@ -380,6 +430,9 @@ export function SessionView({ id }: { id: string }) {
               <Stat label="Load">{fmtMs(r.loadMs)}</Stat>
               <Stat label="Avg latency">{fmtMs(r.avgLatencyMs ?? avgOf(r, 'latencyMs'))}</Stat>
               <Stat label="tok/s">{fmtNum(r.avgTokPerSec ?? avgOf(r, 'tokPerSec'))}</Stat>
+              <Stat label="Exec time" title="Warm-up, preparation and every case of this model; automatic checks and judging excluded">
+                {runTime(r, now)}
+              </Stat>
             </div>
           </div>
         ))}
@@ -443,9 +496,21 @@ function avgOf(r: RunState, k: 'latencyMs' | 'tokPerSec') {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 }
 
-function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+/** Time so far of a run still in progress (a live estimate: its checks are in it); null otherwise. */
+function liveRunMs(r: RunState, now: number): number | null {
+  return (r.status === 'loading' || r.status === 'running') && r.startedAt != null && r.finishedAt == null ? now - r.startedAt : null;
+}
+
+/** A run's execution time: stored once done, ticking while it runs. */
+function runTime(r: RunState, now: number): string {
+  if (r.status === 'done') return fmtDuration(runExecMs(r));
+  const live = liveRunMs(r, now);
+  return live != null ? `${fmtDuration(live)}…` : '–';
+}
+
+function Stat({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div title={title}>
       <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
       <div className="tabular">{children}</div>
     </div>
@@ -513,6 +578,11 @@ function CaseColumn({
             <span>TTFT {fmtMs(cell.metrics.ttftMs)}</span>
             <span>{cell.metrics.tokensOut ?? '–'} tok</span>
             <span>{fmtNum(cell.metrics.tokPerSec)} tok/s</span>
+            {cell.metrics.execMs != null && (
+              <span title="Execution time of the whole case: every model call, tool call and test step; checks and judging excluded">
+                exec {fmtDuration(cell.metrics.execMs)}
+              </span>
+            )}
           </div>
           {cell.checks.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">

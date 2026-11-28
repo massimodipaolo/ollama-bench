@@ -40,7 +40,7 @@ function addDaysIso(date, days) {
   return d.toISOString().slice(0, 10);
 }
 
-const server = new McpServer({ name: 'ollama-benchmark-mcp', version: '1.0.0' });
+const server = new McpServer({ name: 'ollama-bench-mcp', version: '1.0.0' });
 
 server.registerTool(
   'lookupInstitution',

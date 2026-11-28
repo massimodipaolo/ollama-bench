@@ -284,8 +284,10 @@ export function RunForm() {
             </ul>
           </section>
         )}
+      </div>
 
-        <section className="grid gap-4 sm:grid-cols-2">
+      <aside className="space-y-4 rounded-lg border border-line bg-panel p-4">
+        <section className="space-y-3 border-b border-line pb-4">
           <div>
             <label className={label}>Model A</label>
             <select className={field} value={effA} onChange={(e) => setModelA(e.target.value)}>
@@ -300,7 +302,7 @@ export function RunForm() {
               {eligible.map((m) => modelOption(m, effA))}
             </select>
           </div>
-          <p className="text-xs text-muted sm:col-span-2">
+          <p className="text-[11px] text-muted">
             {eligible.length} of {models.length} models on <span className="font-mono">{host}</span> have the capabilities{' '}
             {mode === 'test' ? 'this test needs' : `every checked test needs (uncheck a test to widen the list)`}.
             {mode === 'test' && test && test.languages.length === 0 && (
@@ -312,9 +314,6 @@ export function RunForm() {
             {loadError && <span className="text-bad"> Could not reach Ollama: {loadError}</span>}
           </p>
         </section>
-      </div>
-
-      <aside className="space-y-4 rounded-lg border border-line bg-panel p-4">
         <div>
           <label className={label}>Language</label>
           <select className={field} value={effLang} onChange={(e) => setLang(e.target.value)}>

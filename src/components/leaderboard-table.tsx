@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { LeaderboardRow } from '@/lib/queries';
-import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtMs, fmtNum } from '@/components/score';
+import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtDuration, fmtMs, fmtNum } from '@/components/score';
 
 export const modelHref = (name: string) => `/models/${name.split('/').map(encodeURIComponent).join('/')}`;
 
@@ -24,6 +24,12 @@ export function LeaderboardTable({ rows, moreHref }: { rows: LeaderboardRow[]; m
             <th className="px-3 py-2 text-right font-medium">Auto</th>
             <th className="px-3 py-2 text-right font-medium">tok/s</th>
             <th className="px-3 py-2 text-right font-medium">Latency</th>
+            <th
+              className="px-3 py-2 text-right font-medium"
+              title="Execution time of the run shown, on its case set (quick or full); checks and judging excluded"
+            >
+              Exec time
+            </th>
             <th className="px-4 py-2 text-right font-medium">Runs</th>
           </tr>
         </thead>
@@ -65,6 +71,9 @@ export function LeaderboardTable({ rows, moreHref }: { rows: LeaderboardRow[]; m
               </td>
               <td className="px-3 py-2 text-right tabular">{fmtNum(r.avgTokPerSec)}</td>
               <td className="px-3 py-2 text-right tabular">{fmtMs(r.avgLatencyMs)}</td>
+              <td className="px-3 py-2 text-right tabular" title={r.execMs != null ? `${r.subset} set` : undefined}>
+                {fmtDuration(r.execMs)}
+              </td>
               <td className="px-4 py-2 text-right tabular text-muted">{r.runs}</td>
             </tr>
           ))}

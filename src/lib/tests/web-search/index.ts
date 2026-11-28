@@ -146,7 +146,7 @@ export const webSearch: TestDefinition<WebCase> = {
         args: ['run', '-i', '--rm', '--name', name, '--memory', '512m', '--cpus', '1', ...containerLabel(), tag],
         stderr: 'ignore',
       }),
-      clientName: 'ollama-benchmark',
+      clientName: 'ollama-bench',
     });
     try {
       const connectMs = performance.now() - t0;

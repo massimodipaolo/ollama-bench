@@ -1,44 +1,26 @@
 import 'server-only';
-import fs from 'node:fs';
-import path from 'node:path';
+import { readInstalledVersions } from './sdk-versions';
 
-/** Libraries whose versions are recorded with every session (the benchmark also tests the SDK stack itself). */
-export const TRACKED_PACKAGES = [
-  'ai',
-  'ai-sdk-ollama',
-  'ollama',
-  '@ai-sdk/openai',
-  '@ai-sdk/google',
-  '@ai-sdk/anthropic',
-  '@ai-sdk/cohere',
-  '@ai-sdk/mcp',
-];
-
-function readVersion(dir: string): string | undefined {
-  try {
-    return (JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as { version?: string }).version;
-  } catch {
-    return undefined;
-  }
-}
+export { TRACKED_PACKAGES } from './sdk-versions';
 
 /**
- * Installed versions, read from node_modules (pnpm symlinks direct dependencies at the top level).
- * `ollama` (the JS client) is a dependency of ai-sdk-ollama: resolved next to it in pnpm's store.
+ * Versions read when the app was built (next.config.ts `env`). The standalone server (Docker image) has no
+ * package.json for these libraries: Turbopack compiles them into the server code.
+ */
+const BUILT_WITH: Record<string, string> = (() => {
+  try {
+    return JSON.parse(process.env.BENCH_BUILD_SDK_VERSIONS ?? '{}') as Record<string, string>;
+  } catch {
+    return {};
+  }
+})();
+
+/**
+ * The SDK versions the server runs: what node_modules holds now (dev server, `next start`: always current, even after
+ * an update without a rebuild), else what it was built with (standalone).
  */
 export function sdkVersions(): Record<string, string> {
-  const nm = path.join(process.cwd(), 'node_modules');
-  const out: Record<string, string> = {};
-  for (const pkg of TRACKED_PACKAGES) {
-    let v = readVersion(path.join(nm, ...pkg.split('/')));
-    if (!v && pkg === 'ollama') {
-      try {
-        v = readVersion(path.join(fs.realpathSync(path.join(nm, 'ai-sdk-ollama')), '..', 'ollama'));
-      } catch {}
-    }
-    if (v) out[pkg] = v;
-  }
-  return out;
+  return { ...BUILT_WITH, ...readInstalledVersions(process.cwd()) };
 }
 
 /** Compact label for tables: "ai 7.0.183 · ai-sdk-ollama 4.6.3". */

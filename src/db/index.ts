@@ -11,7 +11,7 @@ import * as schema from './schema';
  * Outside the project on purpose: SQLite writes bench.db-wal/-shm on every write (and -shm even on reads), and the
  * Next.js dev server watches the project tree, so a DB inside it made any open page reload in a loop during runs.
  */
-export const DB_PATH = process.env.BENCH_DB_PATH ?? path.join(os.homedir(), '.ollama-benchmark', 'bench.db');
+export const DB_PATH = process.env.BENCH_DB_PATH ?? path.join(os.homedir(), '.ollama-bench', 'bench.db');
 
 type DB = BetterSQLite3Database<typeof schema>;
 const g = globalThis as unknown as { __benchDb?: DB };

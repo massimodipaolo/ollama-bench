@@ -1,5 +1,5 @@
 {
-  "name": "ollama-benchmark",
+  "name": "ollama-bench",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -16,6 +16,7 @@
     "datasets:fetch": "tsx scripts/datasets/fetch.mts",
     "tb:verify": "tsx scripts/tb-verify.mts",
     "security:codeql": "tsx scripts/codeql.mts",
+    "security:secrets": "tsx scripts/gitleaks.mts",
     "prepare": "git config core.hooksPath .githooks || echo prepare: not a git checkout, hooks not installed"
   },
   "dependencies": {
@@ -58,6 +59,7 @@
     "@types/react-dom": "^19",
     "@types/turndown": "^5.0.6",
     "drizzle-kit": "0.31.11",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "hyparquet": "1.33.2",

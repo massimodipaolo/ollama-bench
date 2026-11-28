@@ -1,0 +1,407 @@
+# Scripts
+
+Command-line tools for running benchmarks, fetching data, maintaining reference fixtures and running security
+checks. Run them from the project root. The root [README](../README.md) explains the app and the tests these scripts
+work with.
+
+| Command | What it does | Needs | VS Code (Run and Debug) |
+|---|---|---|---|
+| [`pnpm smoke`](#pnpm-smoke) | One tiny call to Ollama and to each judge | `.env` | `ai-sdk:update` (after updating the SDK) |
+| [`pnpm bench`](#pnpm-bench) | Batch runs: tests × models through the app's API | the app running | `bench:dry-run`, `bench:quick`, `bench:terminal-bench` |
+| [`pnpm rejudge`](#pnpm-rejudge) | Re-judge a session, or repair broken verdicts | `.env` | — |
+| [`pnpm datasets:fetch`](#pnpm-datasetsfetch) | Download the public benchmark datasets | network | — |
+| [`pnpm tb:verify`](#pnpm-tbverify) | Check the Terminal-Bench harness with the reference solutions | Docker | — |
+| [`pnpm security:codeql`](#pnpm-securitycodeql) | CodeQL scan of the sources | CodeQL CLI | `security:codeql` |
+| [`pnpm audit --prod`](#pnpm-audit---prod) | Known vulnerabilities in the production dependencies | network | `security:audit` |
+| [`docker scout cves`](#docker-scout) | CVEs in the Docker image: OS packages, Node, npm packages | Docker, the image built | `security:scout` |
+| [`pnpm security:secrets`](#pnpm-securitysecrets) | gitleaks on the whole history, the working tree and the image | gitleaks (Docker for the image) | `security:secrets` |
+| [`build-doc2md-refs.mts`](#reference-data-builders) | Rebuild the doc-to-markdown reference Markdown | `.env` (PDF only) | — |
+| [`render-pdf-pages.mjs`](#reference-data-builders) | Render PDF pages to the image-recognition fixtures | — | — |
+| [`judge-image-experiment.mts`](#judge-image-experiment) | One-off judge calibration experiment | `.env` | — |
+
+The Run and Debug list groups its entries as **run** (`dev`, `start`, `docker:run`), **bench** and **security**.
+
+`scripts/mcp/benchmark-server.mjs` isn't run by hand: the app starts it for the `mcp` test (see
+[Web search and MCP tests](../README.md#web-search-and-mcp-tests)).
+
+**Environment.** `smoke` and `rejudge` load `.env` themselves (`tsx --env-file=.env`). The scripts run with
+`pnpm tsx …` need it passed explicitly, as shown below. Scripts that import app code reading the database also need
+`--conditions=react-server`, as the app's modules are server-only. `bench` reads no secrets: the app it talks to
+holds them.
+
+Everything a script writes goes under `.data/` (git-ignored), except the fixture builders, which write into
+`fixtures/` on purpose.
+
+---
+
+## `pnpm smoke`
+
+Connectivity check: one call to Ollama (`granite4.2:3b`, "Reply with exactly: pong") and one structured-output call
+per configured judge (90 s timeout each).
+
+```bash
+pnpm smoke
+```
+
+- **Output:** stdout only. It prints the Ollama reply, token usage, performance metadata and each judge's answer with
+  its latency, or `judge <id> FAILED: …`.
+- A judge without both a key and a model in `.env` is skipped, not reported as failed.
+- A judge failure doesn't change the exit code, so read the output.
+
+## `pnpm bench`
+
+Batch runner: every selected test on every compatible model. It doesn't run anything itself. It drives the running
+app through its API, so batch and browser runs share the GPU lock, the judges and the history, and every session can
+be watched live in the UI.
+
+Start the app first (`pnpm dev`, or `pnpm build && pnpm start` for long runs), then:
+
+```bash
+pnpm bench --dry-run                                  # the plan: sessions and case counts, nothing runs
+pnpm bench                                            # every test × every compatible model, quick set, all judges
+pnpm bench --subset full --skip-existing              # overnight: only what's missing for the current suites
+pnpm bench --tests rag,tool-use --models "/^qwen/,gemma4:31b" --lang it --judges openai,anthropic
+pnpm bench --tests structured-output --all-variants   # every option combination
+pnpm bench --tests doc-to-markdown --num-ctx 32768    # non-default context: separate variant
+pnpm bench --capabilities vision,tools --tier small   # every test of these capabilities
+pnpm bench --tests terminal-bench --models qwen3.8:27b --judges none   # hours-long: only when named
+```
+
+| Option | Meaning |
+|---|---|
+| `--url <url>` | App URL (default `$BENCH_URL` or `http://localhost:3000`) |
+| `--tests <ids>` | Comma-separated test ids. Default: all except hours-long ones (`terminal-bench`) |
+| `--capabilities <ids>` | The tests of these capabilities, as the app at `--url` lists them. Combines with `--tests` |
+| `--models <list>` / `--exclude <list>` | Model names or `/regex/`, comma-separated |
+| `--tier small\|medium\|large\|all` | Model size: < 10B, 10–50B, > 50B |
+| `--lang <codes>` | Languages (default: every language with cases) |
+| `--subset quick\|full` | Case set (default `quick`) |
+| `--judges <ids\|none>` | Judges to use (default: all configured) |
+| `--think` | Enable thinking for models that support it |
+| `--num-ctx <n>` | Context window, capped at each model's maximum. A non-default value is a separate variant |
+| `--option key=value` | Test option override, repeatable |
+| `--all-variants` | Every combination of each test's options |
+| `--skip-existing` | Skip combinations already completed with the same model digest, suite version and SDK versions |
+| `--ignore-sdk` | With `--skip-existing`: an SDK version change doesn't make a combination due again |
+| `--max-sessions <n>` | Stop after n sessions |
+| `--report <file>` | Report path (default `.data/reports/bench-<timestamp>.md`) |
+| `--dry-run` | Print the plan and exit |
+
+- **Strict flags:** a flag with an empty or invalid value is an error, never its default. So `--judges "$JUDGES"` with
+  the variable unset can't quietly use every paid judge. An empty plan is an error too, unless `--skip-existing`
+  found everything already done.
+- **Order:** sessions are grouped by model, so each model loads once and is unloaded when the CLI moves on.
+- **Output:** progress on stdout, plus a report in two formats: `.data/reports/bench-<timestamp>.md` (readable) and
+  `.json` (the same data for scripts). Results are also stored in the app's database like any session.
+- **Ctrl+C** cancels the current session and still writes the report.
+- **Exit code:** non-zero if any session failed or was interrupted.
+
+More context: [Batch runs (CLI)](../README.md#batch-runs-cli) and
+[Context window](../README.md#context-window-num_ctx) in the root README.
+
+## `pnpm rejudge`
+
+Re-runs the judges on stored answers, without re-running the models.
+
+```bash
+pnpm rejudge <sessionId>                    # whole session, every configured judge
+pnpm rejudge <sessionId> openai,anthropic   # only some judges
+pnpm rejudge --invalid --dry-run            # list degenerate or flat stored verdicts
+pnpm rejudge --invalid                      # re-ask only those judges on those cases
+```
+
+- `--invalid` finds verdicts with missing criteria, a leaked judge scratchpad, or flat mid-scale criteria. A flat verdict on a case with attached files
+  is retried without the files.
+- It only repairs verdicts from the judge model configured now, so a session never mixes judge models. For older ones
+  it prints the override to use, e.g. `GOOGLE_MODEL=gemini-4-carbon pnpm rejudge --invalid`.
+- **Output:** stdout. New verdicts go to the database and appear on the session page.
+
+See [Re-judging and broken verdicts](../README.md#re-judging-and-broken-verdicts).
+
+## `pnpm datasets:fetch`
+
+Downloads the public benchmark data. The repo holds only pinned manifests (`fixtures/<test>/manifest.json`); this
+fetches exactly those items into `.data/datasets/<test>/` and builds the cases the tests read.
+
+```bash
+pnpm datasets:fetch                          # OmniDocBench, BFCL, MMMU-Pro (~180 MB on disk)
+pnpm datasets:fetch bfcl mmmu-pro            # some of them
+pnpm datasets:fetch terminal-bench [--pull]  # Terminal-Bench tasks (+ pre-pull the quick tasks' Docker images)
+pnpm datasets:fetch --select                 # maintainer: re-select the subsets and rewrite the manifests
+```
+
+- Files already downloaded are skipped, so a run can be repeated after a network failure.
+- `--select` changes `fixtures/*/manifest.json`, and so the suite version. Commit it only on purpose.
+- **Licences:** OmniDocBench is research use only / non-commercial, so its data must never be committed. BFCL,
+  MMMU-Pro and Terminal-Bench are Apache-2.0.
+
+See [Public benchmarks](../README.md#public-benchmarks-omnidocbench-bfcl-mmmu-pro).
+
+## `pnpm tb:verify`
+
+Checks the Terminal-Bench harness, not a model. For each task it runs the reference `solution/solve.sh` in the task
+container, then the verifier, exactly as a benchmark run does after the agent. Reward 1 means the harness works for
+that task. Anything else is a harness or environment problem.
+
+```bash
+pnpm tb:verify               # the quick tasks
+pnpm tb:verify --all         # all 89 (pulls every image: tens of GB)
+pnpm tb:verify fix-git       # specific tasks
+```
+
+- Needs `pnpm datasets:fetch terminal-bench` first, and Docker.
+- **Output:** a summary on stdout (`n/m reference solutions verified`, with the tail of the log for each failure) and
+  `.data/datasets/terminal-bench/verify.json` with each task's reward and duration.
+
+See [Coding test (Terminal-Bench)](../README.md#coding-test-terminal-bench).
+
+## Security checks
+
+Four checks, each looking at something the others don't. None runs in the pre-commit hook. That hook only scans
+the staged changes for secrets and lints them (see
+[Secrets and security checks](../README.md#secrets-and-security-checks)).
+
+| Check | Looks at | Finds | Time |
+|---|---|---|---|
+| [`pnpm security:codeql`](#pnpm-securitycodeql) | our source code | vulnerable patterns: injection, unsafe file or network use, … | 15–20 min |
+| [`pnpm audit --prod`](#pnpm-audit---prod) | `pnpm-lock.yaml` | published advisories for the npm packages the app depends on | seconds |
+| [`docker scout cves`](#docker-scout) | the built image | CVEs in Alpine packages, Node itself and every npm package in the image | 1–2 min |
+| [`pnpm security:secrets`](#pnpm-securitysecrets) | git history, working tree, image | secrets outside `.env`: committed, in build output or logs, baked into the image | about 1 min |
+
+The audit and Scout overlap on npm packages but aren't redundant. The audit reads the lockfile, so it also covers
+packages that never reach the image. Scout reads the image, so it also covers the OS, Node and whatever the base image
+brings.
+
+## `pnpm security:codeql`
+
+Runs the JavaScript/TypeScript `security-extended` CodeQL queries locally, the same suite GitHub runs on every pull
+request. It takes a few minutes, too long for the pre-commit hook.
+
+```bash
+pnpm security:codeql                    # build the database if the sources changed, then analyze
+pnpm security:codeql --rebuild          # always rebuild the database
+pnpm security:codeql --report md,html   # also write a readable report (md, html, or both)
+pnpm security:codeql --report-only      # no scan: rewrite the reports from the last results.sarif
+pnpm security:codeql --help
+```
+
+| Option | Meaning |
+|---|---|
+| `--rebuild` | Always rebuild the database (default: only when the sources changed) |
+| `--report <fmt>` | Also write `results.md` and/or `results.html`: `md`, `html`, or `md,html` (the option can be repeated) |
+| `--report-only` | Skip the scan and rewrite the reports from the last `results.sarif`. Formats default to `md,html` |
+
+An unknown format, an unknown option, or `--report-only` together with `--rebuild` is an error (exit 2) before
+anything runs.
+
+**Steps** (each line is logged with the clock time and the time since start; each step logs its duration):
+
+1. **Locate the CLI:** `$CODEQL`, then `codeql.exe` / `codeql` on the PATH, then `%LOCALAPPDATA%\codeql\codeql.exe`.
+   Install it from [codeql-cli-binaries](https://github.com/github/codeql-cli-binaries) if none is found.
+2. **Build the database.** CodeQL can't update a JavaScript database incrementally, so a change means a full
+   rebuild. The script hashes the files git sees (tracked plus untracked, not ignored), the CLI and the extractor
+   config. If the database exists and the hash matches the last build's, it reuses the database. A change to a
+   git-ignored file that CodeQL still extracts isn't detected: use `--rebuild` then.
+3. **Analyze:** runs the query suite. The query packs are downloaded on first use. The SARIF includes the code around
+   each location and each rule's help text, for the reports.
+4. **Read the results:** findings are sorted by severity, using GitHub's buckets on the rule's security-severity score
+   (critical ≥ 9, high ≥ 7, medium ≥ 4, low).
+5. **Write the reports** (only with `--report`).
+
+At the end it prints one line per finding (severity, rule, `file:line`, message), then the output files: the SARIF
+and Markdown paths, and the HTML report as a `file:///` URL. Ctrl+click one in the VS Code terminal to open it.
+`--report-only` runs steps 4 and 5 only.
+
+**Files** in `.data/codeql/`:
+
+| File | Content |
+|---|---|
+| `results.sarif` | The full results (SARIF 2.1.0 JSON): rules, messages, locations, data flows |
+| `results.md` | Markdown report (`--report md`) |
+| `results.html` | HTML report, a single file with no external resources; follows the system light/dark theme (`--report html`) |
+| `db/` | The CodeQL database |
+| `db.fingerprint` | Hash of the sources the database was built from |
+| `config.yml` | Extractor config: skips `node_modules`, `.next`, `.data` |
+| `scan.lock` | Present while a scan runs; holds its PID |
+
+**Reading the reports.** Both reports have the same content:
+
+- a header: scan time, commit (marked when there are uncommitted changes), whether the database was rebuilt or
+  reused, CodeQL version, rules run, files scanned, duration;
+- a summary: counts per severity and per rule;
+- one section per finding:
+  - the rule, its severity score, precision and CWE links;
+  - the location and the message, whose references point to the related lines;
+  - the code around the finding, with the reported lines marked;
+  - the data-flow path from source to sink, when the rule tracks one;
+  - the rule's help, collapsed.
+
+The Markdown report links to the files relative to itself (`#L<line>`): open it in VS Code with the preview
+(Ctrl+Shift+V) and the links jump to the line. The HTML report uses `vscode://file/…` links, which open VS Code at
+the line from the browser.
+
+With `--report-only`, any file that changed after the scan is flagged in the report: its code is read from disk and
+may no longer match the reported lines.
+
+The VS Code **SARIF Viewer** extension (Microsoft) also opens `results.sarif` directly.
+
+**Exit codes:** `0` no findings · `1` findings, or a CodeQL step failed (its own exit code is passed on) · `2` usage
+error, CLI not found, no SARIF for `--report-only`, or another scan holds the lock.
+
+**`Another CodeQL scan is running`:** check whether the PID in `scan.lock` is still alive (`tasklist /FI "PID eq
+<pid>"` on Windows). If it isn't, a scan crashed: delete the file and retry.
+
+**VS Code:** `security:codeql` runs `pnpm security:codeql --report md,html`.
+
+## `pnpm audit --prod`
+
+Checks the production dependencies in `pnpm-lock.yaml`, direct and nested, against the advisories published for
+npm packages (GitHub's advisory database, through the registry). `--prod` leaves out dev dependencies: build, lint
+and test tools never run in the app.
+
+```bash
+pnpm audit --prod                           # every advisory
+pnpm audit --prod --audit-level high        # only high and critical
+pnpm audit --prod --json                    # machine-readable
+pnpm audit --prod --fix                     # add pnpm overrides that force patched versions
+pnpm audit --prod --fix update              # re-resolve the lockfile to patched versions instead
+pnpm audit --prod --ignore GHSA-xxxx-xxxx-xxxx   # accept one advisory (repeatable)
+```
+
+- **Output:** stdout. A table per advisory: the package, its severity, the vulnerable and patched versions, the
+  dependency path that pulls it in, and a link to the advisory.
+- **Exit code:** non-zero when it finds an advisory at or above `--audit-level` (default: any).
+- **Fixing:**
+  - **Direct dependency:** upgrade it.
+  - **Nested one:** upgrading the direct dependency that pulls it in is the clean fix. `--fix` adds an override to
+    `pnpm-workspace.yaml` instead, which forces that version across the whole tree. Check that the package still
+    works, and remove the override once the direct dependency ships the fix.
+- **VS Code:** `security:audit`.
+
+## `docker scout`
+
+Scans the Docker image built from the [Dockerfile](../Dockerfile) for known CVEs: Alpine packages, the Node binary,
+and every npm package in the image, including the ones the base image brings. It needs Docker Desktop signed in to a
+Docker account.
+
+Scout reads the image as built. After a code, dependency or Dockerfile change, rebuild it first: the `docker:build`
+task in VS Code, or the `docker build` command in the root README's [Docker](../README.md#docker) section.
+
+```bash
+docker scout cves --only-fixed ollama-bench:local             # CVEs that have a fix: the ones you can act on
+docker scout cves ollama-bench:local                          # every CVE, fixed upstream or not
+docker scout cves --locations ollama-bench:local              # with the file path of each package
+docker scout cves --only-severity critical,high ollama-bench:local
+docker scout cves --format markdown --output .data/scout.md ollama-bench:local   # report (also sarif, spdx)
+docker scout recommendations ollama-bench:local               # newer or smaller base images
+```
+
+- **Reading a finding:** `--locations` shows where a package sits in the image:
+  - `/app/node_modules/...`: an app dependency. Fix it as for `pnpm audit`.
+  - `/usr/local/lib/node_modules/...`: tools bundled with the base image. The Dockerfile removes npm, corepack and
+    yarn for this reason.
+  - `pkg:apk/...`: an Alpine package. Fixed by a rebuild once Alpine publishes the patched package.
+- **Rebuild with `--pull`** (the `docker:build` task does): the final stage runs `apk upgrade`, but Docker caches
+  that step until the base image changes. `--pull` fetches the current `node:24-alpine`, so a new base image or an
+  Alpine fix reaches the image. A CVE whose fix Alpine hasn't published yet stays listed even with `--only-fixed`
+  until then.
+- **Exit code:** `0` even with findings. Add `--exit-code` to get `2` when there are any.
+- **VS Code:** `security:scout` runs `cves --only-fixed`, then `recommendations`, on the image `docker:build` makes
+  (`<folder>:local`, i.e. `ollama-bench:local`).
+
+## `pnpm security:secrets`
+
+gitleaks on what the two automatic scans don't cover. The pre-commit hook sees only the staged changes, and the
+GitHub workflow only the commits of each push or pull request.
+
+```bash
+pnpm security:secrets                          # all three scans below
+pnpm security:secrets history tree             # some of them
+pnpm security:secrets image --image my-tag     # another local image (default ollama-bench:local)
+pnpm security:secrets --env-file .env.prod     # also look for the values in another env file (repeatable)
+pnpm security:secrets --help
+```
+
+| Scan | Looks at | Catches |
+|---|---|---|
+| `history` | every commit of every branch and tag | secrets committed before the hook existed, or with `git commit --no-verify` |
+| `tree` | the working tree, git-ignored files included | secrets in build output (`.next`), `.data/` (reports, the CodeQL database), logs, stray files: anything one `git add -f`, paste or upload away from leaking |
+| `image` | the filesystem of the local Docker image (`docker export`) | a secret baked into the image, e.g. by the build (`.env.docker` must stay a build secret) |
+
+With no scan named, it runs all three, and skips `image` with a note when the image isn't built. Named explicitly,
+a missing image is an error.
+
+**Own secrets.** Besides gitleaks' default rules, every scan searches for the actual values in `.env` and
+`.env.docker`, plus any `--env-file`. These are the variables named like `*KEY*`, `*TOKEN*`, `*SECRET*`,
+`*PASSWORD*` or `*CREDENTIAL*`, 8 characters or longer. So a key is found wherever it was copied, even in a format
+no default rule recognises, such as an `OLLAMA_API_KEY` for a proxy.
+
+- The values reach gitleaks only through the `GITLEAKS_CONFIG_TOML` environment variable of its own process, never a
+  file.
+- Every report and every line of output is redacted.
+- A finding shows the variable's name, never its value.
+
+**What each scan skips** (allowlists; everything else is scanned):
+
+| Skipped | Why | Scans |
+|---|---|---|
+| the env files themselves | that's where secrets belong | tree |
+| `node_modules/` | third-party code, covered by `pnpm audit` and Scout | tree, image |
+| Next's per-build keys (`preview-props.json`, `server-reference-manifest.json`, `prerender-manifest.json`, `.rscinfo`, `.previewinfo`) | generated by Next.js for each build, not ours | tree, image |
+| `*.js.map` | source maps repeat the code next to them, which is scanned | tree, image |
+| `.git/`, `.data/datasets/`, `.data/gitleaks/` | read properly by the history scan / third-party data / this script's output | tree |
+
+`history` skips nothing: a committed `.env` or build output is a finding. All three scans honour `.gitleaksignore`.
+
+- **Output:** every run, clean or not, writes **`.data/gitleaks/report.md`** with all its scans and prints its path
+  at the end. The report has:
+  - a header: run time, commit, gitleaks version, and the names of the own secrets searched for (never their values);
+  - a summary table: each scan, what it covered, its result and time;
+  - the findings per scan, own secrets first: rule, location (a link to the file and line for `tree`; the commit for
+    `history`; the path inside the image for `image`) and fingerprint;
+  - what to do about them;
+  - what each scan skipped.
+
+  stdout lists the same findings as `[rule] file:line`, each with its fingerprint. `.data/gitleaks/<scan>.json` keeps
+  gitleaks' raw, redacted report per scan.
+- **Acting on a finding:**
+  - **`OWN SECRET`:** a real key outside its env file. Remove that copy. If it was committed, pushed, or shipped in an
+    image, rotate the key: removing it doesn't undo the exposure.
+  - **Any other finding:** check it. A false positive goes in `.gitleaksignore`, one fingerprint per line.
+- **Exit codes:** `0` clean · `1` findings · `2` usage error, gitleaks not installed, a gitleaks error, or the image
+  missing when `image` was named.
+- **The image scan** exports the filesystem of a container created from the image (never started) to
+  `.data/gitleaks/image.tar`, about 1 GB, scans it and deletes it. The image is scanned as built, so rebuild it first.
+- **VS Code:** `security:secrets` runs all three scans, on the image `docker:build` makes (`ollama-bench:local`).
+
+## Reference data builders
+
+These rewrite fixtures, the ground truth of some tests. Review the diff before committing. A fixture change also
+changes the suite version, which keeps old and new results apart.
+
+```bash
+# doc-to-markdown references (fixtures/doc-to-markdown/reference/*.md), any of: csv xlsx docx pdf
+pnpm tsx --conditions=react-server --env-file=.env scripts/build-doc2md-refs.mts csv xlsx docx
+
+# image-recognition pages (fixtures/image-recognition/images/i1095a-p<n>.png) from .data/files/i1095a.pdf
+node scripts/render-pdf-pages.mjs
+```
+
+- `build-doc2md-refs.mts`: CSV, XLSX and DOCX are converted deterministically. `pdf` asks Claude to read the PDF
+  (needs `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL`) and produces a draft that must be reviewed. With no arguments, it
+  rebuilds all four. The image reference is hand-written.
+- Both read their sources from `.data/files/`.
+
+## Judge image experiment
+
+A calibration experiment, kept for reference rather than routine use. It re-judges one stored, known-good answer N
+times per image variant (format, size, position in the message) to see whether the Google judge's flat 7 on image
+cases depends on them. It found it doesn't (see
+[Re-judging and broken verdicts](../README.md#re-judging-and-broken-verdicts)).
+
+```bash
+pnpm tsx --conditions=react-server --env-file=.env scripts/judge-image-experiment.mts [reps=4] [variant-filter]
+```
+
+**Output:** stdout only. It loads `sharp` by its path inside `node_modules/.pnpm`, so it breaks when that version
+changes.

@@ -21,6 +21,15 @@ export function fmtMs(ms: number | null | undefined) {
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
+/** Execution times, from milliseconds to hours: 850 ms · 12.3 s · 4m 05s · 2h 03m */
+export function fmtDuration(ms: number | null | undefined) {
+  if (ms == null) return '–';
+  if (ms < 60_000) return fmtMs(ms);
+  const s = Math.round(ms / 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return s < 3600 ? `${Math.floor(s / 60)}m ${pad(s % 60)}s` : `${Math.floor(s / 3600)}h ${pad(Math.floor((s % 3600) / 60))}m`;
+}
+
 export function fmtNum(n: number | null | undefined, digits = 1) {
   return n == null ? '–' : n.toFixed(digits);
 }
