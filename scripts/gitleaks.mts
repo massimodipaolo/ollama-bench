@@ -163,7 +163,11 @@ const ALLOWLISTS: Record<Scan, Allowlist[]> = {
   tree: [
     { description: 'where secrets belong: the env files the own secrets are read from', paths: envFilePatterns() },
     { description: "git's own files: the history scan reads the commits", paths: [String.raw`^\.git[\\/]`] },
-    { description: 'downloaded third-party datasets', paths: [String.raw`^\.data[\\/]datasets[\\/]`] },
+    {
+      // next build traces .data/datasets into the standalone output (src/lib/tests/datasets.ts reads it by path)
+      description: 'downloaded third-party datasets, and the copy a local next build puts in .next/standalone',
+      paths: [String.raw`^(\.next[\\/]standalone[\\/])?\.data[\\/]datasets[\\/]`],
+    },
     { description: "this script's reports and the image export", paths: [String.raw`^\.data[\\/]gitleaks[\\/]`] },
     NODE_MODULES,
     NEXT_KEYS,
