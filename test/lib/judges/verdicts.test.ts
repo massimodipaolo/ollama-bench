@@ -38,6 +38,24 @@ describe('invalidVerdict', () => {
   ])('rejects a leaked judge scratchpad: %s', (r) => {
     expect(invalidVerdict({ rationale: r, criteria }, rubric)).toBe('judge scratchpad leaked into the rationale');
   });
+
+  // pins the two patterns: thinking aloud counts only as the opening words, talk about the JSON output anywhere
+  it.each([
+    '  Hmm, the second step is wrong, so accuracy suffers a lot.',
+    'Okay, so the answer misses the deadline the question asks for.',
+    'The answer is correct. Output only the JSON was the instruction, followed.',
+    'Accurate and clear; no text outside the JSON as required by the format.',
+  ])('rejects a scratchpad at the start or JSON talk anywhere: %s', (r) => {
+    expect(invalidVerdict({ rationale: r, criteria }, rubric)).toBe('judge scratchpad leaked into the rationale');
+  });
+
+  it.each([
+    'The answer explains the wait times clearly and gets the total right.',
+    'Correct total; let me note that the steps are well ordered and clear.',
+    'Clear answer, and hmm-style hesitation is absent; the numbers add up.',
+  ])('accepts thinking-aloud words that are not the opening: %s', (r) => {
+    expect(invalidVerdict({ rationale: r, criteria }, rubric)).toBeNull();
+  });
 });
 
 describe('flatVerdict', () => {

@@ -38,9 +38,12 @@ export interface Verdict {
   score: number;
 }
 
-/** A judge's own scratchpad leaking into the rationale ("Wait—no extra text outside JSON! …"). */
-const SCRATCHPAD =
-  /^\s*(wait\b|let me\b|okay,? (so|let)\b|hmm\b)|no (extra )?text outside (the )?json|output only (the )?json|here is the json/i;
+/**
+ * A judge's own scratchpad leaking into the rationale ("Wait—no extra text outside JSON! …"): it opens with thinking
+ * aloud, or it talks about its JSON output anywhere. Two patterns, so that only the first one is anchored.
+ */
+const SCRATCHPAD_OPENING = /^\s*(wait\b|let me\b|okay,? (so|let)\b|hmm\b)/i;
+const SCRATCHPAD_ANYWHERE = /no (extra )?text outside (the )?json|output only (the )?json|here is the json/i;
 
 /**
  * Why a verdict is unusable (null = fine). Degenerate verdicts (no criteria, leaked scratchpad) are retried and,
@@ -52,7 +55,7 @@ export function invalidVerdict(v: Pick<Verdict, 'rationale' | 'criteria'>, rubri
   if (missing.length) return `missing criteria: ${missing.join(', ')}`;
   const r = (v.rationale ?? '').trim();
   if (r.length < 20) return 'rationale missing or too short';
-  if (SCRATCHPAD.test(r)) return 'judge scratchpad leaked into the rationale';
+  if (SCRATCHPAD_OPENING.test(r) || SCRATCHPAD_ANYWHERE.test(r)) return 'judge scratchpad leaked into the rationale';
   return null;
 }
 
