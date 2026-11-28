@@ -110,7 +110,9 @@ docker run --rm --name ollama-bench-local --hostname ollama-bench-local -p 127.0
     only added CVEs or secret-scan false positives.
 
   Locally, `pnpm start` (`next start`) still works with this config, and prints a warning that standalone output
-  should use `node .next/standalone/server.js`.
+  should use `node .next/standalone/server.js`. `pnpm build` deletes the `.env` copies Next puts in the standalone
+  output (keys don't belong in build output), so that one needs its settings passed:
+  `node --env-file=.env .next/standalone/server.js`.
 
 ## How a run works
 
