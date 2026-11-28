@@ -23,7 +23,7 @@
  * Exit code: 0 no open findings · 1 open findings · 2 a check that was asked for failed, or a usage error.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, fstatSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createSteps, fmt } from './cli-steps.mjs';
@@ -189,9 +189,17 @@ function runSecrets(): Outcome {
   const r = script('gitleaks.mts', ['--image', imageName]);
   if (r.status !== 0 && r.status !== 1)
     return { status: 'error', reason: `scripts/gitleaks.mts exited with ${r.status}`, target: 'secrets', findings: [] };
-  if (statSync(resultsPath).mtimeMs < started - 1000)
-    return { status: 'error', reason: 'gitleaks wrote no results', target: 'secrets', findings: [] };
-  const results = JSON.parse(readFileSync(resultsPath, 'utf8')) as GitleaksResults;
+  // one open file for the age check and the read: both see the same file, even if it's replaced in between
+  const fd = openSync(resultsPath, 'r');
+  let text: string;
+  try {
+    if (fstatSync(fd).mtimeMs < started - 1000)
+      return { status: 'error', reason: 'gitleaks wrote no results', target: 'secrets', findings: [] };
+    text = readFileSync(fd, 'utf8');
+  } finally {
+    closeSync(fd);
+  }
+  const results = JSON.parse(text) as GitleaksResults;
   const scanned = results.scans.map((s) => (s.skipped ? `${s.scan} (skipped: ${s.skipped})` : s.scan));
   return withFindings({
     target: `git ${scanned.join(', ')}`,
