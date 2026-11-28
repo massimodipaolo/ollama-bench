@@ -224,7 +224,7 @@ export function fromAudit(report: AuditReport, prodIds: Set<string>): SecurityFi
         ? `No patched version yet: check whether the vulnerable code is reachable here, or replace ${a.module_name}.`
         : isDirect
           ? `Upgrade ${a.module_name} to ${patched}.`
-          : `Upgrade the dependency that pulls it in (${direct.join(', ')}) to a release with ${a.module_name} ${patched}; if there's none yet, add a pnpm override "${a.module_name}": "${patched}" and run the tests.`,
+          : `Upgrade the dependency that pulls it in (${direct.join(', ')}) to a release with ${a.module_name} ${patched}; if there's none yet, add an override "${a.module_name}": "${patched}" in pnpm-workspace.yaml and run the tests.`,
       url: a.url,
       details: [a.cves?.join(', '), a.vulnerable_versions ? `vulnerable: ${a.vulnerable_versions}` : '', paths.slice(0, 3).join(' · ')]
         .filter(Boolean)

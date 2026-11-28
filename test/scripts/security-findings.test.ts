@@ -201,7 +201,7 @@ describe('converting each tool', () => {
       fixable: true,
       package: { fixedIn: '>=8.4.31', via: ['next'] },
     });
-    expect(by('postcss').fix).toMatch(/Upgrade the dependency that pulls it in \(next\).*pnpm override/);
+    expect(by('postcss').fix).toMatch(/Upgrade the dependency that pulls it in \(next\).*override .* in pnpm-workspace\.yaml/);
     expect(by('esbuild')).toMatchObject({ area: 'dev-dependency', severity: 'high' });
     expect(by('esbuild').fix).toBe('Upgrade esbuild to >=0.25.0.');
     expect(by('abandoned')).toMatchObject({ fixable: false, severity: 'low' });
