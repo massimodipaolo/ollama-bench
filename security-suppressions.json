@@ -1,6 +1,10 @@
 {
   "suppressions": [
     {
+      "id": "codeql-fc221bc2",
+      "reason": "The HTML comes from mammoth converting .data/files/17incddocguide.docx, a public IRS document committed in this repository, never user input; the stripped cell text only feeds a Markdown table whose cell() escapes every < and > before writing fixtures/doc-to-markdown/reference/, so no tag can reach the output. The script is a maintainer tool run by hand on a developer machine. A follow-up replace removing stray < and > (output identical) did not clear the alert, so it is not worth a code change."
+    },
+    {
       "id": "scout-69d2405a",
       "reason": "musl CVE-2026-107891 is fixed in 1.2.6-r6, not yet in Alpine 3.24: `apk policy musl` on node:24-alpine (Alpine 3.24.4) on 2026-11-28 offers only 1.2.6-r3, which the image has after `apk upgrade`. Picked up by the next build (docker build --pull, which pnpm security --build and the docker:build task run). The image runs only locally, its port published on 127.0.0.1.",
       "expires": "2026-12-19"
