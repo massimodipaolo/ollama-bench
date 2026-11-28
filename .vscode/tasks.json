@@ -20,9 +20,9 @@
     },
     {
       "label": "AI SDK: verify",
-      "detail": "Typecheck, lint, and one real call to Ollama + each judge",
+      "detail": "Typecheck, lint, the test suite, then one real call to Ollama + each judge",
       "type": "shell",
-      "command": "pnpm typecheck && pnpm lint && pnpm smoke",
+      "command": "pnpm verify && pnpm smoke",
       "problemMatcher": ["$tsc"]
     },
     {

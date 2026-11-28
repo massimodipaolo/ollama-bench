@@ -4,20 +4,21 @@ Command-line tools for running benchmarks, fetching data, maintaining reference 
 checks. Run them from the project root. The root [README](../README.md) explains the app and the tests these scripts
 work with.
 
-| Command | What it does | Needs | VS Code (Run and Debug) |
-|---|---|---|---|
-| [`pnpm smoke`](#pnpm-smoke) | One tiny call to Ollama and to each judge | `.env` | `ai-sdk:update` (after updating the SDK) |
-| [`pnpm bench`](#pnpm-bench) | Batch runs: tests × models through the app's API | the app running | `bench:dry-run`, `bench:quick`, `bench:terminal-bench` |
-| [`pnpm rejudge`](#pnpm-rejudge) | Re-judge a session, or repair broken verdicts | `.env` | — |
-| [`pnpm datasets:fetch`](#pnpm-datasetsfetch) | Download the public benchmark datasets | network | — |
-| [`pnpm tb:verify`](#pnpm-tbverify) | Check the Terminal-Bench harness with the reference solutions | Docker | — |
-| [`pnpm security:codeql`](#pnpm-securitycodeql) | CodeQL scan of the sources | CodeQL CLI | `security:codeql` |
-| [`pnpm audit --prod`](#pnpm-audit---prod) | Known vulnerabilities in the production dependencies | network | `security:audit` |
-| [`docker scout cves`](#docker-scout) | CVEs in the Docker image: OS packages, Node, npm packages | Docker, the image built | `security:scout` |
-| [`pnpm security:secrets`](#pnpm-securitysecrets) | gitleaks on the whole history, the working tree and the image | gitleaks (Docker for the image) | `security:secrets` |
-| [`build-doc2md-refs.mts`](#reference-data-builders) | Rebuild the doc-to-markdown reference Markdown | `.env` (PDF only) | — |
-| [`render-pdf-pages.mjs`](#reference-data-builders) | Render PDF pages to the image-recognition fixtures | — | — |
-| [`judge-image-experiment.mts`](#judge-image-experiment) | One-off judge calibration experiment | `.env` | — |
+| Command                                                 | What it does                                                  | Needs                           | VS Code (Run and Debug)                                |
+| ------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------ |
+| [`pnpm test`](#pnpm-test)                               | The test suite (Vitest), with `test:coverage` and `verify`    | —                               | —                                                      |
+| [`pnpm smoke`](#pnpm-smoke)                             | One tiny call to Ollama and to each judge                     | `.env`                          | `ai-sdk:update` (after updating the SDK)               |
+| [`pnpm bench`](#pnpm-bench)                             | Batch runs: tests × models through the app's API              | the app running                 | `bench:dry-run`, `bench:quick`, `bench:terminal-bench` |
+| [`pnpm rejudge`](#pnpm-rejudge)                         | Re-judge a session, or repair broken verdicts                 | `.env`                          | —                                                      |
+| [`pnpm datasets:fetch`](#pnpm-datasetsfetch)            | Download the public benchmark datasets                        | network                         | —                                                      |
+| [`pnpm tb:verify`](#pnpm-tbverify)                      | Check the Terminal-Bench harness with the reference solutions | Docker                          | —                                                      |
+| [`pnpm security:codeql`](#pnpm-securitycodeql)          | CodeQL scan of the sources                                    | CodeQL CLI                      | `security:codeql`                                      |
+| [`pnpm audit --prod`](#pnpm-audit---prod)               | Known vulnerabilities in the production dependencies          | network                         | `security:audit`                                       |
+| [`docker scout cves`](#docker-scout)                    | CVEs in the Docker image: OS packages, Node, npm packages     | Docker, the image built         | `security:scout`                                       |
+| [`pnpm security:secrets`](#pnpm-securitysecrets)        | gitleaks on the whole history, the working tree and the image | gitleaks (Docker for the image) | `security:secrets`                                     |
+| [`build-doc2md-refs.mts`](#reference-data-builders)     | Rebuild the doc-to-markdown reference Markdown                | `.env` (PDF only)               | —                                                      |
+| [`render-pdf-pages.mjs`](#reference-data-builders)      | Render PDF pages to the image-recognition fixtures            | —                               | —                                                      |
+| [`judge-image-experiment.mts`](#judge-image-experiment) | One-off judge calibration experiment                          | `.env`                          | —                                                      |
 
 The Run and Debug list groups its entries as **run** (`dev`, `start`, `docker:run`), **bench** and **security**.
 
@@ -33,6 +34,153 @@ Everything a script writes goes under `.data/` (git-ignored), except the fixture
 `fixtures/` on purpose.
 
 ---
+
+## `pnpm test`
+
+The test suite, with [Vitest](https://vitest.dev). Tests live in `test/`, mirroring `src/`: for example
+`test/lib/tests/checks.test.ts` tests `src/lib/tests/checks.ts`.
+
+```bash
+pnpm test                          # the whole suite, once (a few seconds)
+pnpm test test/proxy.test.ts       # one file (or a name pattern: pnpm test -t "BFCL")
+pnpm test:watch                    # re-runs the affected tests on every change
+pnpm test:coverage                 # + coverage report: .data/coverage/index.html
+pnpm verify                        # typecheck + lint + tests: before a commit, after an SDK update
+```
+
+**What the tests can't touch.** `test/setup.ts` runs before every test file, in that file's own process:
+
+- **Database:** a fresh temporary one, with every migration applied on first use, deleted afterwards. The real
+  `~/.ollama-bench/bench.db` is never opened.
+- **Providers:** no judge or Cohere API keys, and Ollama is pointed at a port where nothing listens. No test spends
+  money or reaches a real model by accident; a test that needs a model fakes one explicitly.
+- **`server-only`:** replaced by an empty stub (`test/stubs/server-only.ts`), so tests can import server modules
+  directly.
+
+**What's covered so far:**
+
+- the automatic checks;
+- judge-verdict validation;
+- the real Mermaid parser analysis;
+- the BFCL checker;
+- the file adapters, run on the real sample files in `.data/files/`;
+- the leaderboard ranking;
+- execution-time maths, size tiers and math normalisation;
+- the database migrations;
+- **security regression tests** for the request guard (`src/proxy.ts`): foreign or spoofed `Host`, cross-origin and
+  cross-site writes, non-JSON bodies;
+- **AI SDK contract tests** (`test/sdk/`): what the app sends to Ollama and reads back. They run the real `ai` +
+  `ai-sdk-ollama` + `ollama` packages over real HTTP. Covered: streaming, token counts and decode speed, the session
+  settings sent (num_ctx, seed, temperature, think, keep_alive), thinking, the tool-calling loop, structured output
+  (JSON schema as Ollama `format`), mid-stream errors, cancellation. **Run them after updating any of those
+  packages**: a failure names the behaviour that changed;
+- **the runner end to end** (`test/runner/`), against the fake Ollama and a temporary database:
+  - a whole session: every quick case, runs and case results, execution times, scores;
+  - warm-up with the session context, the generation settings, unloading;
+  - two models one after the other; num_ctx capped at the model maximum;
+  - a failed warm-up, a mid-stream error with partial output, cancellation;
+- **the API routes** (`test/api/`), called the way Next calls them (handler + request), against the fake Ollama and
+  the temporary database:
+  - sessions: input validation (400), errors from the runner, detail and list, live events, cancel, re-judge (409
+    while running);
+  - run history and the CSV export: UTF-8 BOM, file names that can't be broken by a model name, and **formula
+    injection**: model output such as `=HYPERLINK(…)` is exported as text, never as a formula;
+  - prompt preview and attached files: inline only for safe types, `nosniff`, index validation;
+  - the model list (502 when Ollama fails), sync, models in memory, unload (409 while a session needs the model),
+    host default context;
+  - the test list, active sessions, capability batches.
+
+  `test/setup.ts` replaces Next's `connection()` with a no-op: it only exists to stop prerendering, and it throws
+  outside a real Next request;
+
+- **the benchmark tests** (`test/lib/tests/`, `test/lib/rag/`), each one's `run()` against the fake Ollama and its
+  `check()` on the result: a correct answer scores 10, typical mistakes fail the right check. Every benchmark test is
+  covered:
+  - tool use (and its tools: the calculator refuses anything but arithmetic);
+  - BFCL;
+  - structured output (native and prompt mode);
+  - doc-to-markdown and image recognition (CSV and PDF as extracted text, images as native Ollama images);
+  - embeddings, reranking (listwise, yes/no log-probabilities, embedding rerankers), RAG;
+  - corpus chunking, ranking metrics and BM25.
+
+  Retrieval runs on an **oracle embedder** served by the fake Ollama, which ranks perfectly by construction, so every
+  check must pass; a flat embedder must fail them. A **fixture integrity** test checks that every answerable query, in
+  both languages, points at chunks that exist.
+
+  The tests that need Docker, the live web or downloaded datasets are covered without them:
+  - **MCP** runs end to end with the real MCP server (`scripts/mcp/benchmark-server.mjs`), spawned as in the app; the
+    app-only tool must never reach the model;
+  - **web search** tests `run()` and its scoring with stand-in search/fetch tools (its `prepare()` needs Docker and
+    the live web);
+  - **Terminal-Bench** replaces `src/lib/docker.ts` with a scripted fake that records every call. It checks the agent
+    loop, the sandbox flags (no network, resource limits, no mounts, owner label), the separate verifier container,
+    how `reward.txt` is read, the "stuck" detection, and that containers are removed even when verification fails;
+  - **OmniDocBench and MMMU-Pro** test their scoring, plus an MMMU-Pro run, on inline cases: a test must not depend
+    on a dataset being downloaded on the machine running it;
+
+- **the queries behind the pages** (`test/lib/queries/`), on a small history written straight into the database by
+  `test/helpers/seed.ts`. It covers judged and unjudged runs, two languages, a non-default context, a result from an
+  older suite version, a failed run, a re-pulled model and a removed test. Checked:
+  - which run represents each model in the leaderboards;
+  - capability scores and ranking (only models with a current result on every test they can take), size tiers;
+  - the overview's overall score;
+  - the model list;
+  - the comparison: scores, tokens/s, and the average case time, measured or estimated for older runs;
+  - active sessions with their progress, and batch status.
+- **the judges** (`test/lib/judges/`, `test/runner/judged-session.test.ts`), with stand-in judge models
+  (`MockLanguageModelV4` from `ai/test`, built by `test/helpers/judges.ts`) in place of the paid providers:
+  - what each judge is asked, the clamped verdict, only the enabled judges;
+  - the cache: an identical case is served from it, while a different response, rubric version or judge model is not
+    a hit;
+  - broken verdicts are retried; after three attempts the judge error is stored with no score (left out of averages,
+    never a 0), and a broken verdict in the cache is not reused;
+  - the "flat verdict" fallback: a flat mid-scale verdict on a case with an attachment is asked again without the
+    file;
+  - a judged session end to end (blind, per-judge means and their average), and re-judging one judge on chosen cases;
+- **recovery and infrastructure** (`test/lib/runner/recovery-and-infra.test.ts`):
+  - on start-up, sessions of stopped servers are interrupted and their containers removed, while live servers are
+    left alone;
+  - the GPU lock: one session at a time, in arrival order, surviving a failure;
+  - the live event stream: replay, then new events, then the close;
+  - which judges count as configured, and the Cohere rate limit;
+- **the two pages with the most logic**, in two layers:
+  - their logic, moved out of the components into plain modules and tested directly:
+    - `src/app/sessions/[id]/session-state.ts`: the stored session turned into page state, each live event applied
+      to it, execution times, judge disagreement;
+    - `src/app/run/run-form-state.ts`: which tests run, which models qualify, the context cap, thinking, and the
+      request that starts a session or a batch;
+  - **component tests** (`test/app/*.test.tsx`), rendering the real components in a simulated browser (jsdom +
+    React Testing Library), with `fetch`, `EventSource` and Next's router replaced:
+    - the session page loads a finished session and follows a live one through its event stream;
+    - Re-judge and Cancel post to the API;
+    - the run form offers only the models that fit the chosen test, then starts a session or a capability batch;
+    - it shows the server's refusal and stays on the page.
+
+  A component test opts into the browser environment with `// @vitest-environment jsdom` as its first line; every
+  other test runs in Node. The other pages (dashboard, leaderboards, comparison) are mostly display over the tested
+  queries, and are not covered by component tests.
+
+**Known failures** are written as `it.fails(…)`: the suite stays green while the bug exists, and that test turns red
+once the bug is fixed, as a reminder to make it a plain `it(…)`. None at the moment.
+
+**Fake Ollama** (`test/helpers/fake-ollama.ts`): a real HTTP server on a random local port that answers like Ollama.
+It streams scripted `/api/chat` replies (text, thinking, tool calls, counts and durations, errors), records every
+request, and answers warm-up, unload, `/api/tags`, `/api/show`, `/api/ps` and `/api/version`. A test points
+`OLLAMA_HOST` at it before importing the modules that read it:
+
+```ts
+const ollama = await startFakeOllama();
+process.env.OLLAMA_HOST = ollama.url;
+const { runStream } = await import('@/lib/tests/generate');
+ollama.replies.push(chatReply({ text: 'Hello', evalCount: 20, evalDurationMs: 500 }));
+```
+
+**Coverage** (`.data/coverage/`: `index.html` per file and line, `coverage-summary.json` for scripts) works as a
+ratchet. The thresholds in `vitest.config.mts` start at the current coverage, so a drop fails
+`pnpm test:coverage`. When coverage grows, Vitest raises them in the config file itself; commit that change with the
+tests. Plain `pnpm test` doesn't measure coverage, and stays fast.
+
+**VS Code:** the "AI SDK: verify" task runs `pnpm verify`, then the smoke test.
 
 ## `pnpm smoke`
 
@@ -67,25 +215,25 @@ pnpm bench --capabilities vision,tools --tier small   # every test of these capa
 pnpm bench --tests terminal-bench --models qwen3.8:27b --judges none   # hours-long: only when named
 ```
 
-| Option | Meaning |
-|---|---|
-| `--url <url>` | App URL (default `$BENCH_URL` or `http://localhost:3000`) |
-| `--tests <ids>` | Comma-separated test ids. Default: all except hours-long ones (`terminal-bench`) |
-| `--capabilities <ids>` | The tests of these capabilities, as the app at `--url` lists them. Combines with `--tests` |
-| `--models <list>` / `--exclude <list>` | Model names or `/regex/`, comma-separated |
-| `--tier small\|medium\|large\|all` | Model size: < 10B, 10–50B, > 50B |
-| `--lang <codes>` | Languages (default: every language with cases) |
-| `--subset quick\|full` | Case set (default `quick`) |
-| `--judges <ids\|none>` | Judges to use (default: all configured) |
-| `--think` | Enable thinking for models that support it |
-| `--num-ctx <n>` | Context window, capped at each model's maximum. A non-default value is a separate variant |
-| `--option key=value` | Test option override, repeatable |
-| `--all-variants` | Every combination of each test's options |
-| `--skip-existing` | Skip combinations already completed with the same model digest, suite version and SDK versions |
-| `--ignore-sdk` | With `--skip-existing`: an SDK version change doesn't make a combination due again |
-| `--max-sessions <n>` | Stop after n sessions |
-| `--report <file>` | Report path (default `.data/reports/bench-<timestamp>.md`) |
-| `--dry-run` | Print the plan and exit |
+| Option                                 | Meaning                                                                                        |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `--url <url>`                          | App URL (default `$BENCH_URL` or `http://localhost:3000`)                                      |
+| `--tests <ids>`                        | Comma-separated test ids. Default: all except hours-long ones (`terminal-bench`)               |
+| `--capabilities <ids>`                 | The tests of these capabilities, as the app at `--url` lists them. Combines with `--tests`     |
+| `--models <list>` / `--exclude <list>` | Model names or `/regex/`, comma-separated                                                      |
+| `--tier small\|medium\|large\|all`     | Model size: < 10B, 10–50B, > 50B                                                               |
+| `--lang <codes>`                       | Languages (default: every language with cases)                                                 |
+| `--subset quick\|full`                 | Case set (default `quick`)                                                                     |
+| `--judges <ids\|none>`                 | Judges to use (default: all configured)                                                        |
+| `--think`                              | Enable thinking for models that support it                                                     |
+| `--num-ctx <n>`                        | Context window, capped at each model's maximum. A non-default value is a separate variant      |
+| `--option key=value`                   | Test option override, repeatable                                                               |
+| `--all-variants`                       | Every combination of each test's options                                                       |
+| `--skip-existing`                      | Skip combinations already completed with the same model digest, suite version and SDK versions |
+| `--ignore-sdk`                         | With `--skip-existing`: an SDK version change doesn't make a combination due again             |
+| `--max-sessions <n>`                   | Stop after n sessions                                                                          |
+| `--report <file>`                      | Report path (default `.data/reports/bench-<timestamp>.md`)                                     |
+| `--dry-run`                            | Print the plan and exit                                                                        |
 
 - **Strict flags:** a flag with an empty or invalid value is an error, never its default. So `--judges "$JUDGES"` with
   the variable unset can't quietly use every paid judge. An empty plan is an error too, unless `--skip-existing`
@@ -161,11 +309,11 @@ Four checks, each looking at something the others don't. None runs in the pre-co
 the staged changes for secrets and lints them (see
 [Secrets and security checks](../README.md#secrets-and-security-checks)).
 
-| Check | Looks at | Finds | Time |
-|---|---|---|---|
-| [`pnpm security:codeql`](#pnpm-securitycodeql) | our source code | vulnerable patterns: injection, unsafe file or network use, … | 15–20 min |
-| [`pnpm audit --prod`](#pnpm-audit---prod) | `pnpm-lock.yaml` | published advisories for the npm packages the app depends on | seconds |
-| [`docker scout cves`](#docker-scout) | the built image | CVEs in Alpine packages, Node itself and every npm package in the image | 1–2 min |
+| Check                                            | Looks at                         | Finds                                                                            | Time        |
+| ------------------------------------------------ | -------------------------------- | -------------------------------------------------------------------------------- | ----------- |
+| [`pnpm security:codeql`](#pnpm-securitycodeql)   | our source code                  | vulnerable patterns: injection, unsafe file or network use, …                    | 15–20 min   |
+| [`pnpm audit --prod`](#pnpm-audit---prod)        | `pnpm-lock.yaml`                 | published advisories for the npm packages the app depends on                     | seconds     |
+| [`docker scout cves`](#docker-scout)             | the built image                  | CVEs in Alpine packages, Node itself and every npm package in the image          | 1–2 min     |
 | [`pnpm security:secrets`](#pnpm-securitysecrets) | git history, working tree, image | secrets outside `.env`: committed, in build output or logs, baked into the image | about 1 min |
 
 The audit and Scout overlap on npm packages but aren't redundant. The audit reads the lockfile, so it also covers
@@ -185,11 +333,11 @@ pnpm security:codeql --report-only      # no scan: rewrite the reports from the 
 pnpm security:codeql --help
 ```
 
-| Option | Meaning |
-|---|---|
-| `--rebuild` | Always rebuild the database (default: only when the sources changed) |
+| Option           | Meaning                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| `--rebuild`      | Always rebuild the database (default: only when the sources changed)                                   |
 | `--report <fmt>` | Also write `results.md` and/or `results.html`: `md`, `html`, or `md,html` (the option can be repeated) |
-| `--report-only` | Skip the scan and rewrite the reports from the last `results.sarif`. Formats default to `md,html` |
+| `--report-only`  | Skip the scan and rewrite the reports from the last `results.sarif`. Formats default to `md,html`      |
 
 An unknown format, an unknown option, or `--report-only` together with `--rebuild` is an error (exit 2) before
 anything runs.
@@ -214,15 +362,15 @@ and Markdown paths, and the HTML report as a `file:///` URL. Ctrl+click one in t
 
 **Files** in `.data/codeql/`:
 
-| File | Content |
-|---|---|
-| `results.sarif` | The full results (SARIF 2.1.0 JSON): rules, messages, locations, data flows |
-| `results.md` | Markdown report (`--report md`) |
-| `results.html` | HTML report, a single file with no external resources; follows the system light/dark theme (`--report html`) |
-| `db/` | The CodeQL database |
-| `db.fingerprint` | Hash of the sources the database was built from |
-| `config.yml` | Extractor config: skips `node_modules`, `.next`, `.data` |
-| `scan.lock` | Present while a scan runs; holds its PID |
+| File             | Content                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `results.sarif`  | The full results (SARIF 2.1.0 JSON): rules, messages, locations, data flows                                  |
+| `results.md`     | Markdown report (`--report md`)                                                                              |
+| `results.html`   | HTML report, a single file with no external resources; follows the system light/dark theme (`--report html`) |
+| `db/`            | The CodeQL database                                                                                          |
+| `db.fingerprint` | Hash of the sources the database was built from                                                              |
+| `config.yml`     | Extractor config: skips `node_modules`, `.next`, `.data`                                                     |
+| `scan.lock`      | Present while a scan runs; holds its PID                                                                     |
 
 **Reading the reports.** Both reports have the same content:
 
@@ -322,11 +470,11 @@ pnpm security:secrets --env-file .env.prod     # also look for the values in ano
 pnpm security:secrets --help
 ```
 
-| Scan | Looks at | Catches |
-|---|---|---|
-| `history` | every commit of every branch and tag | secrets committed before the hook existed, or with `git commit --no-verify` |
-| `tree` | the working tree, git-ignored files included | secrets in build output (`.next`), `.data/` (reports, the CodeQL database), logs, stray files: anything one `git add -f`, paste or upload away from leaking |
-| `image` | the filesystem of the local Docker image (`docker export`) | a secret baked into the image, e.g. by the build (`.env.docker` must stay a build secret) |
+| Scan      | Looks at                                                   | Catches                                                                                                                                                     |
+| --------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `history` | every commit of every branch and tag                       | secrets committed before the hook existed, or with `git commit --no-verify`                                                                                 |
+| `tree`    | the working tree, git-ignored files included               | secrets in build output (`.next`), `.data/` (reports, the CodeQL database), logs, stray files: anything one `git add -f`, paste or upload away from leaking |
+| `image`   | the filesystem of the local Docker image (`docker export`) | a secret baked into the image, e.g. by the build (`.env.docker` must stay a build secret)                                                                   |
 
 With no scan named, it runs all three, and skips `image` with a note when the image isn't built. Named explicitly,
 a missing image is an error.
@@ -343,13 +491,13 @@ no default rule recognises, such as an `OLLAMA_API_KEY` for a proxy.
 
 **What each scan skips** (allowlists; everything else is scanned):
 
-| Skipped | Why | Scans |
-|---|---|---|
-| the env files themselves | that's where secrets belong | tree |
-| `node_modules/` | third-party code, covered by `pnpm audit` and Scout | tree, image |
-| Next's per-build keys (`preview-props.json`, `server-reference-manifest.json`, `prerender-manifest.json`, `.rscinfo`, `.previewinfo`) | generated by Next.js for each build, not ours | tree, image |
-| `*.js.map` | source maps repeat the code next to them, which is scanned | tree, image |
-| `.git/`, `.data/datasets/`, `.data/gitleaks/` | read properly by the history scan / third-party data / this script's output | tree |
+| Skipped                                                                                                                               | Why                                                                         | Scans       |
+| ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------- |
+| the env files themselves                                                                                                              | that's where secrets belong                                                 | tree        |
+| `node_modules/`                                                                                                                       | third-party code, covered by `pnpm audit` and Scout                         | tree, image |
+| Next's per-build keys (`preview-props.json`, `server-reference-manifest.json`, `prerender-manifest.json`, `.rscinfo`, `.previewinfo`) | generated by Next.js for each build, not ours                               | tree, image |
+| `*.js.map`                                                                                                                            | source maps repeat the code next to them, which is scanned                  | tree, image |
+| `.git/`, `.data/datasets/`, `.data/gitleaks/`                                                                                         | read properly by the history scan / third-party data / this script's output | tree        |
 
 `history` skips nothing: a committed `.env` or build output is a finding. All three scans honour `.gitleaksignore`.
 
@@ -364,6 +512,7 @@ no default rule recognises, such as an `OLLAMA_API_KEY` for a proxy.
 
   stdout lists the same findings as `[rule] file:line`, each with its fingerprint. `.data/gitleaks/<scan>.json` keeps
   gitleaks' raw, redacted report per scan.
+
 - **Acting on a finding:**
   - **`OWN SECRET`:** a real key outside its env file. Remove that copy. If it was committed, pushed, or shipped in an
     image, rotate the key: removing it doesn't undo the exposure.

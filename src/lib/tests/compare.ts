@@ -9,7 +9,10 @@ export interface CompareRules {
   arrayKeys?: Record<string, string>;
   /** paths ignored for accuracy (free text evaluated by judges), e.g. ["summary", "action.replyText"] */
   ignore?: string[];
-  /** relative tolerance for numbers (default 0.005) */
+  /**
+   * relative tolerance for decimal numbers (default 0.005): rounding of percentages, rates, amounts with cents.
+   * Integers (years, counts, ids, whole amounts) always match exactly: 0.5% of a year would accept ±10 years.
+   */
   numberTolerance?: number;
 }
 
@@ -84,7 +87,9 @@ function isObj(v: unknown): v is Record<string, unknown> {
 function leafMatch(e: unknown, a: unknown, tol: number): boolean {
   if (typeof e === 'number') {
     const n = typeof a === 'number' ? a : typeof a === 'string' ? Number(a.replace(',', '.')) : NaN;
-    return Number.isFinite(n) && Math.abs(n - e) <= Math.max(1e-9, Math.abs(e) * tol);
+    if (!Number.isFinite(n)) return false;
+    if (Number.isInteger(e)) return n === e;
+    return Math.abs(n - e) <= Math.max(1e-9, Math.abs(e) * tol);
   }
   if (typeof e === 'boolean') return a === e || (typeof a === 'string' && a.toLowerCase() === String(e));
   if (typeof e === 'string') return (typeof a === 'string' || typeof a === 'number') && stringsMatch(e, String(a));

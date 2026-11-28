@@ -1,31 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CAPABILITIES, getCapability } from '@/config/capabilities';
-
-interface TestSummary {
-  id: string;
-  name: string;
-  description: string;
-  requires: string[];
-  requiresAny: string[];
-  judged: boolean;
-  cliOnly: boolean;
-  languages: string[];
-  numCtx: number;
-  options: { id: string; label: string; description?: string; choices: { value: string; label: string }[]; default: string }[];
-  caseCounts: Record<string, { quick: number; full: number }>;
-}
-interface ModelInfo {
-  name: string;
-  parameterSize: string;
-  quantization: string;
-  capabilities: string[];
-  contextLength: number | null;
-}
-
-const fmtCtx = (n: number | null | undefined) => (n == null ? '?' : n >= 1024 ? `${Math.round(n / 1024)}k` : String(n));
+import { deriveRunForm, fmtCtx, startRequest, type Meta, type Mode, type ModelInfo, type RunFormChoices } from './run-form-state';
 
 interface HostContext {
   defaultContext: number;
@@ -33,19 +11,9 @@ interface HostContext {
   cappedByModel: boolean;
   error?: string;
 }
-interface Meta {
-  tests: TestSummary[];
-  languages: { code: string; name: string }[];
-  judges: { id: string; label: string; modelId: string }[];
-}
 
 const field = 'w-full rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-accent';
 const label = 'mb-1 block text-xs font-medium uppercase tracking-wide text-muted';
-
-const fits = (t: Pick<TestSummary, 'requires' | 'requiresAny'>, m: ModelInfo) =>
-  t.requires.every((c) => m.capabilities.includes(c)) && (!t.requiresAny.length || t.requiresAny.some((c) => m.capabilities.includes(c)));
-
-type Mode = 'test' | 'capability';
 
 export function RunForm() {
   const router = useRouter();
@@ -102,55 +70,48 @@ export function RunForm() {
       });
   }, []);
 
-  // CLI-only tests (hours per model) can't be started here, even from a ?test= link
-  const test = meta?.tests.find((t) => t.id === testId && !t.cliOnly);
-  const cap = getCapability(capId)!;
-  const capTests = useMemo(
-    () => cap.tests.map((id) => meta?.tests.find((t) => t.id === id)).filter((t): t is TestSummary => !!t),
-    [cap, meta],
-  );
-
-  // language: the test's languages, or (capability) any language at least one of its tests has cases in
-  const langsAvailable = mode === 'test' ? (test?.languages ?? []) : [...new Set(capTests.flatMap((t) => t.languages))];
-  const effLang = langsAvailable.includes(lang) ? lang : (langsAvailable[0] ?? 'en');
-  const checked = capTests.filter((t) => !t.cliOnly && t.languages.includes(effLang) && !(unchecked[capId] ?? []).includes(t.id));
-  const runTests = mode === 'test' ? (test ? [test] : []) : checked;
-
-  const eligible = runTests.length ? models.filter((m) => runTests.every((t) => fits(t, m))) : [];
-  // keep selections valid when the test changes (derived, not synced via effects)
-  const effA = eligible.some((m) => m.name === modelA) ? modelA : '';
-  const effB = eligible.some((m) => m.name === modelB) ? modelB : '';
-  const selected = [effA, effB].filter(Boolean);
-  const maxCtx = (() => {
-    const xs = selected
-      .map((n) => models.find((m) => m.name === n)?.contextLength)
-      .filter((x): x is number => typeof x === 'number' && x > 0);
-    return xs.length ? Math.min(...xs) : null;
-  })();
-  const effExtra = Object.fromEntries(
-    (test?.options ?? []).map((o) => [o.id, o.choices.some((c) => c.value === extra[o.id]) ? extra[o.id] : o.default]),
-  );
-  const canThink = selected.length > 0 && selected.every((n) => models.find((m) => m.name === n)?.capabilities.includes('thinking'));
-  const anyJudged = runTests.some((t) => t.judged);
-  const totalCases = runTests.reduce((a, t) => a + (t.caseCounts[effLang]?.[subset] ?? 0), 0) * Math.max(1, selected.length);
-  const defaultCtx = mode === 'test' ? test?.numCtx : undefined;
+  const choices: RunFormChoices = {
+    mode,
+    testId,
+    capId,
+    unchecked,
+    lang,
+    modelA,
+    modelB,
+    subset,
+    think,
+    temperature,
+    seed,
+    numCtx,
+    judges,
+    extra,
+  };
+  const d = deriveRunForm(meta, models, choices);
+  const {
+    test,
+    cap,
+    capTests,
+    langsAvailable,
+    effLang,
+    checked,
+    runTests,
+    eligible,
+    effA,
+    effB,
+    selected,
+    maxCtx,
+    effExtra,
+    canThink,
+    anyJudged,
+    totalCases,
+    defaultCtx,
+  } = d;
 
   async function submit() {
     setSubmitting(true);
     setError(null);
-    const config = { subset, think: canThink && think, temperature, seed, judges, ...(numCtx ? { numCtx } : {}) };
-    const res =
-      mode === 'test'
-        ? await fetch('/api/sessions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ testId, lang: effLang, models: selected, config: { ...config, extra: effExtra } }),
-          })
-        : await fetch('/api/batches', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ capability: capId, testIds: checked.map((t) => t.id), lang: effLang, models: selected, config }),
-          });
+    const { url, body } = startRequest(choices, d);
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
     if (!res.ok) {
       setError(data.error ?? 'Failed to start');

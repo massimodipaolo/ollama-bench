@@ -10,10 +10,11 @@ the design and roadmap.
 pnpm install
 pnpm smoke   # checks Ollama + each judge with one tiny call
 pnpm dev     # http://localhost:3000
+pnpm verify  # typecheck + lint + tests (Vitest; coverage with pnpm test:coverage)
 ```
 
-Every command-line script (benchmarks, re-judging, dataset downloads, fixture builders, security scans) is documented,
-with its options, output files and exit codes, in [scripts/README.md](scripts/README.md).
+Every command-line script (tests, benchmarks, re-judging, dataset downloads, fixture builders, security scans) is
+documented, with its options, output files and exit codes, in [scripts/README.md](scripts/README.md#pnpm-test).
 
 The app is local-only: `pnpm dev` and `pnpm start` bind to loopback, and requests using non-local hostnames or
 cross-origin API writes are rejected. Do not expose the app through a LAN address or reverse proxy without adding

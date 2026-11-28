@@ -3,9 +3,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { SessionEvent } from '@/lib/runner/events';
-import type { CheckResult, CriterionScore } from '@/db/schema';
 import { JUDGE_LABEL, JUDGE_ORDER, Score, fmtDuration, fmtMs, fmtNum } from '@/components/score';
-import { runExecMs, sessionExecMs } from '@/lib/timing';
+import {
+  apply,
+  avgOf,
+  DISAGREEMENT,
+  fromDetail,
+  judgeSpread,
+  runTime,
+  sessionTotal,
+  visibleCaseIds,
+  type CaseCell,
+  type ViewState,
+} from './session-state';
 import { PromptButton } from './prompt-button';
 import { Markdown } from '@/components/markdown';
 
@@ -32,209 +42,6 @@ function ViewToggle({ preview, onChange, label }: { preview: boolean; onChange: 
       ))}
     </span>
   );
-}
-
-interface JudgeCell {
-  score: number | null;
-  rationale?: string;
-  criteria?: CriterionScore[];
-  cached?: boolean;
-  error?: string;
-  withoutAttachments?: boolean;
-}
-interface CaseCell {
-  status: 'running' | 'done';
-  caseResultId?: number;
-  output: string;
-  reasoning?: string;
-  data?: unknown;
-  error?: string;
-  checks: CheckResult[];
-  autoScore: number | null;
-  metrics: {
-    latencyMs?: number | null;
-    ttftMs?: number | null;
-    tokensOut?: number | null;
-    reasoningTokens?: number | null;
-    tokPerSec?: number | null;
-    execMs?: number | null;
-  };
-  judgments: Record<string, JudgeCell>;
-}
-interface RunState {
-  id: number;
-  label: string;
-  model: { name: string; parameterSize: string | null; quantization: string | null; digest: string };
-  status: string;
-  error?: string | null;
-  loadMs?: number | null;
-  role: 'candidate' | 'baseline';
-  stats?: Record<string, number | string> | null;
-  autoScore: number | null;
-  judgeScores: Record<string, number | null>;
-  judgeAvg: number | null;
-  avgTokPerSec?: number | null;
-  avgLatencyMs?: number | null;
-  startedAt: number | null;
-  execMs: number | null;
-  finishedAt: number | null;
-  cases: Record<string, CaseCell>;
-}
-interface ViewState {
-  testName: string;
-  lang: string;
-  status: string;
-  phase?: string;
-  error?: string | null;
-  createdAt: number;
-  finishedAt: number | null;
-  config: {
-    subset: string;
-    think: boolean;
-    temperature: number;
-    seed: number;
-    numCtx: number;
-    numCtxRequested?: number;
-    judges: string[];
-    ollamaVersion?: string;
-    sdk?: Record<string, string>;
-    extra?: Record<string, string>;
-  };
-  suiteVersion: string;
-  cases: { id: string; title: string }[];
-  judges: { id: string; label: string; modelId: string }[];
-  runs: RunState[];
-}
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function fromDetail(d: any): ViewState {
-  return {
-    testName: d.testName,
-    lang: d.lang,
-    status: d.status,
-    error: d.error,
-    createdAt: d.createdAt,
-    finishedAt: d.finishedAt ?? null,
-    config: d.config,
-    suiteVersion: d.suiteVersion,
-    cases: d.cases,
-    judges: d.judges,
-    runs: d.runs.map((r: any) => ({
-      id: r.id,
-      label: r.blindLabel,
-      role: r.role,
-      stats: r.stats,
-      model: r.model,
-      status: r.status,
-      error: r.error,
-      loadMs: r.loadMs,
-      autoScore: r.autoScore,
-      judgeScores: r.judgeScores ?? {},
-      judgeAvg: r.judgeAvg,
-      avgTokPerSec: r.avgTokPerSec,
-      avgLatencyMs: r.avgLatencyMs,
-      startedAt: r.startedAt ?? null,
-      execMs: r.execMs ?? null,
-      finishedAt: r.finishedAt ?? null,
-      cases: Object.fromEntries(
-        r.cases.map((c: any) => [
-          c.caseId,
-          {
-            status: 'done',
-            caseResultId: c.id,
-            output: c.output ?? '',
-            reasoning: c.reasoning ?? undefined,
-            data: c.data ?? undefined,
-            error: c.error ?? undefined,
-            checks: c.checks ?? [],
-            autoScore: c.autoScore,
-            metrics: c,
-            judgments: Object.fromEntries(
-              c.judgments.map((j: any) => [
-                j.judge,
-                {
-                  score: j.score,
-                  rationale: j.rationale,
-                  criteria: j.criteria,
-                  cached: j.cached,
-                  error: j.error,
-                  withoutAttachments: j.withoutAttachments,
-                },
-              ]),
-            ),
-          } satisfies CaseCell,
-        ]),
-      ),
-    })),
-  };
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-function apply(s: ViewState, e: SessionEvent): ViewState {
-  const runs = s.runs.map((r) => ({ ...r, cases: { ...r.cases } }));
-  const run = 'runId' in e ? runs.find((r) => r.id === e.runId) : undefined;
-  switch (e.type) {
-    case 'session':
-      return { ...s, status: 'running', phase: e.status };
-    case 'run-status':
-      if (run) {
-        // live timestamps (client clock) until the reload at session end brings the stored ones
-        const at = Date.now();
-        Object.assign(run, {
-          status: e.status,
-          loadMs: e.loadMs ?? run.loadMs,
-          error: e.error,
-          startedAt: run.startedAt ?? at,
-          finishedAt: e.status === 'done' || e.status === 'error' ? at : run.finishedAt,
-        });
-      }
-      break;
-    case 'case-start':
-      if (run) run.cases[e.caseId] = { status: 'running', output: '', checks: [], autoScore: null, metrics: {}, judgments: {} };
-      break;
-    case 'delta':
-      if (run && run.cases[e.caseId]) run.cases[e.caseId] = { ...run.cases[e.caseId], output: run.cases[e.caseId].output + e.text };
-      break;
-    case 'case-end':
-      if (run)
-        run.cases[e.caseId] = {
-          ...(run.cases[e.caseId] ?? { judgments: {} }),
-          status: 'done',
-          caseResultId: e.caseResultId,
-          output: e.output,
-          reasoning: e.reasoning,
-          data: e.data,
-          error: e.error,
-          checks: e.checks,
-          autoScore: e.autoScore,
-          metrics: e.metrics,
-        };
-      break;
-    case 'judgment':
-      if (run && run.cases[e.caseId]) {
-        const c = run.cases[e.caseId];
-        run.cases[e.caseId] = {
-          ...c,
-          judgments: {
-            ...c.judgments,
-            [e.judge]: {
-              score: e.score,
-              rationale: e.rationale,
-              cached: e.cached,
-              error: e.error,
-              withoutAttachments: e.withoutAttachments,
-            },
-          },
-        };
-      }
-      break;
-    case 'run-scores':
-      if (run) Object.assign(run, { autoScore: e.autoScore, judgeScores: e.judgeScores, judgeAvg: e.judgeAvg });
-      break;
-    case 'session-end':
-      return { ...s, runs, status: e.status, error: e.error, phase: undefined, finishedAt: Date.now() };
-  }
-  return { ...s, runs };
 }
 
 export function SessionView({ id }: { id: string }) {
@@ -311,20 +118,7 @@ export function SessionView({ id }: { id: string }) {
 
   const running = state.status === 'running' || state.status === 'queued';
   const judgeIds = JUDGE_ORDER.filter((j) => state.config.judges.includes(j));
-  const caseIds = state.cases.map((c) => c.id).filter((cid) => state.runs.some((r) => r.cases[cid]));
-  const extraIds = [...new Set(state.runs.flatMap((r) => Object.keys(r.cases)))].filter((x) => !caseIds.includes(x));
-  // total = the models' execution times (judging excluded): stored once finished (also while a re-judge reopens the
-  // session); while the models run, the finished runs plus the current one so far, until the judges are left
-  const modelsRunning = state.runs.some((r) => r.status === 'loading' || r.status === 'running');
-  const total =
-    state.finishedAt != null
-      ? { ms: sessionExecMs({ status: 'done' }, state.runs), live: false }
-      : running && state.runs.some((r) => r.startedAt != null)
-        ? {
-            ms: state.runs.reduce((sum, r) => sum + (runExecMs(r) ?? liveRunMs(r, now) ?? 0), 0),
-            live: modelsRunning,
-          }
-        : null;
+  const total = sessionTotal(state, now);
 
   return (
     <div className="space-y-6">
@@ -451,7 +245,7 @@ export function SessionView({ id }: { id: string }) {
             }}
           />
         </div>
-        {[...caseIds, ...extraIds].map((cid) => (
+        {visibleCaseIds(state).map((cid) => (
           <section key={cid} className="rounded-lg border border-line bg-panel">
             <h3 className="flex items-center gap-2 border-b border-line px-4 py-2 font-medium">
               <span>
@@ -489,25 +283,6 @@ function gridCols(n: number) {
   return n >= 3 ? 'md:grid-cols-2 xl:grid-cols-3' : n === 2 ? 'md:grid-cols-2' : '';
 }
 
-function avgOf(r: RunState, k: 'latencyMs' | 'tokPerSec') {
-  const v = Object.values(r.cases)
-    .map((c) => c.metrics[k])
-    .filter((x): x is number => typeof x === 'number');
-  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
-}
-
-/** Time so far of a run still in progress (a live estimate: its checks are in it); null otherwise. */
-function liveRunMs(r: RunState, now: number): number | null {
-  return (r.status === 'loading' || r.status === 'running') && r.startedAt != null && r.finishedAt == null ? now - r.startedAt : null;
-}
-
-/** A run's execution time: stored once done, ticking while it runs. */
-function runTime(r: RunState, now: number): string {
-  if (r.status === 'done') return fmtDuration(runExecMs(r));
-  const live = liveRunMs(r, now);
-  return live != null ? `${fmtDuration(live)}…` : '–';
-}
-
 function Stat({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) {
   return (
     <div title={title}>
@@ -516,8 +291,6 @@ function Stat({ label, title, children }: { label: string; title?: string; child
     </div>
   );
 }
-
-const DISAGREEMENT = 4; // points between the highest and lowest judge score
 
 function CaseColumn({
   cell,
@@ -542,9 +315,7 @@ function CaseColumn({
         <span className="rounded bg-code px-2 py-1 text-xs">{cell.error}</span>
       </div>
     );
-  const judged = judgeIds.map((j) => cell.judgments[j]?.score).filter((x): x is number => typeof x === 'number');
-  const avg = judged.length ? judged.reduce((a, b) => a + b, 0) / judged.length : null;
-  const spread = judged.length > 1 ? Math.max(...judged) - Math.min(...judged) : 0;
+  const { avg, spread } = judgeSpread(cell, judgeIds);
   return (
     <div className="min-w-0 space-y-3 p-4">
       {label && <div className="text-xs text-muted">{label}</div>}

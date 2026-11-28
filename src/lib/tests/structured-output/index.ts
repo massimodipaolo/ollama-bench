@@ -58,7 +58,8 @@ export const structuredOutput: TestDefinition<StructuredCase> = {
   name: 'Structured output (zod)',
   description:
     'Extraction into zod schemas of increasing complexity: flat, nested, long arrays with derived fields, enums and discriminated unions.',
-  version: '1',
+  // 2: integers (years, counts) compared exactly; 1 accepted ±0.5% (a tax year within ±10)
+  version: '2',
   requires: ['completion'],
   numCtx: 16384,
   options: [

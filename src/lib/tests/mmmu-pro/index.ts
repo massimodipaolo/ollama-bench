@@ -59,8 +59,10 @@ export function extractLetter(text: string, n: number): string | null {
   const all = [...text.matchAll(new RegExp(`answer\\s*[:：]\\s*\\**\\s*\\(?([${valid}])\\)?\\b`, 'gi'))];
   if (all.length) return all[all.length - 1][1].toUpperCase();
   const t = text.trim().replace(/^\**|\**$/g, '');
-  const lead = t.match(new RegExp(`^\\(?([${valid}])\\)?(?:[.):\\s]|$)`));
-  return lead ? lead[1] : null;
+  // a leading "(B)", or "B" followed by . ) : or nothing. Not by a space: with 10 options (A–J) the words "I" and "A"
+  // are letters, and "I think…" or "A good approach…" are not answers
+  const lead = t.match(new RegExp(`^(?:\\(([${valid}])\\)|([${valid}])(?:[.):]|$))`));
+  return lead ? (lead[1] ?? lead[2]) : null;
 }
 
 export const mmmuPro: TestDefinition<MmmuCase> = {
@@ -68,7 +70,8 @@ export const mmmuPro: TestDefinition<MmmuCase> = {
   name: 'MMMU-Pro (multimodal reasoning)',
   description:
     'Expert-level multimodal multiple choice with 10 options, one item per subject (30). "vision" config: the question exists only inside a screenshot. Accuracy.',
-  version: '2',
+  // 3: a leading "I …" / "A …" (pronoun, article) is no longer read as option I / A
+  version: '3',
   requires: ['completion', 'vision'],
   numCtx: 16384,
   judged: false,
