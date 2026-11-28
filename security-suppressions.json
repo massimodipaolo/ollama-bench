@@ -5,6 +5,10 @@
       "reason": "The request body is the reranking test's prompt, built from the queries and documents in fixtures/ (committed in this repository), and it goes to the Ollama server the operator configures (OLLAMA_HOST in .env): sending that text to the model under test is the benchmark. No secret, user upload or other file reaches it. The app runs on the operator's machine, listening on 127.0.0.1."
     },
     {
+      "id": "codeql-24cbf7ab",
+      "reason": "The bench report is written from the JSON answers of this app's own API, at the --url / BENCH_URL the developer chose (default http://localhost:3000, started by them), to the path they gave with --report (default .data/reports/). Its content is Markdown and JSON text (session IDs, names, scores), never executed, and the file name doesn't come from the network. The CLI runs only by hand on a developer machine."
+    },
+    {
       "id": "codeql-382c2928",
       "reason": "Writing the download is this script's job: pnpm datasets:fetch saves the public benchmark files pinned in fixtures/*/manifest.json (committed in this repository: fixed Hugging Face revisions and GitHub commits) under .data/datasets/, through a .part file renamed when complete. The files are test data, read by the benchmarks; the script never executes them. It runs only by hand on a developer machine."
     },
