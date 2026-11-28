@@ -5,12 +5,20 @@
       "reason": "The request body is the reranking test's prompt, built from the queries and documents in fixtures/ (committed in this repository), and it goes to the Ollama server the operator configures (OLLAMA_HOST in .env): sending that text to the model under test is the benchmark. No secret, user upload or other file reaches it. The app runs on the operator's machine, listening on 127.0.0.1."
     },
     {
+      "id": "codeql-382c2928",
+      "reason": "Writing the download is this script's job: pnpm datasets:fetch saves the public benchmark files pinned in fixtures/*/manifest.json (committed in this repository: fixed Hugging Face revisions and GitHub commits) under .data/datasets/, through a .part file renamed when complete. The files are test data, read by the benchmarks; the script never executes them. It runs only by hand on a developer machine."
+    },
+    {
       "id": "codeql-cf1e4484",
       "reason": "The package and repository names come from the web-search cases in fixtures/web-search/cases/*.json, committed in this repository, never from a user or a model; the request reads their public latest version from api.github.com (releases/latest) to score the answer, so the only file data that leaves the machine is those public names. The test runs only from the CLI (pnpm bench) on a developer machine."
     },
     {
       "id": "codeql-f372030f",
       "reason": "The package and repository names come from the web-search cases in fixtures/web-search/cases/*.json, committed in this repository, never from a user or a model; the request reads their public latest version from registry.npmjs.org to score the answer, so the only file data that leaves the machine is those public names. The test runs only from the CLI (pnpm bench) on a developer machine."
+    },
+    {
+      "id": "codeql-f40edea9",
+      "reason": "The URL is built from fixtures/*/manifest.json, committed in this repository (public dataset or repository name and pinned revision or commit), so the only file data in the request is those public identifiers, sent to huggingface.co or codeload.github.com. pnpm datasets:fetch runs only by hand on a developer machine."
     },
     {
       "id": "codeql-fc221bc2",
