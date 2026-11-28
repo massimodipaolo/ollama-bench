@@ -551,7 +551,7 @@ pnpm security:secrets --help
 | --------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `history` | every commit of every branch and tag                       | secrets committed before the hook existed, or with `git commit --no-verify`                                                                                 |
 | `tree`    | the working tree, git-ignored files included               | secrets in build output (`.next`), `.data/` (reports, the CodeQL database), logs, stray files: anything one `git add -f`, paste or upload away from leaking |
-| `image`   | the filesystem of the local Docker image (`docker export`) | a secret baked into the image, e.g. by the build (`.env.docker` must stay a build secret)                                                                   |
+| `image`   | the filesystem of the local Docker image (`docker export`) | a secret baked into the image, e.g. a `.env` that `next build` copied into the standalone output                                                            |
 
 With no scan named, it runs all three, and skips `image` with a note when the image isn't built. Named explicitly,
 a missing image is an error.

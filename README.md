@@ -71,7 +71,7 @@ machine. In VS Code, **`docker:run`** (Run and Debug) builds the image (`docker:
 http://localhost:3300. On the command line:
 
 ```bash
-docker build --pull --secret id=env,src=.env.docker -t ollama-bench:local .
+docker build --pull -t ollama-bench:local .
 docker run --rm --name ollama-bench-local --hostname ollama-bench-local -p 127.0.0.1:3300:3000 \
   --add-host=host.docker.internal:host-gateway -v "$PWD/.env.docker:/app/.env:ro" ollama-bench:local
 ```
@@ -86,9 +86,10 @@ docker run --rm --name ollama-bench-local --hostname ollama-bench-local -p 127.0
   against the app on the host (`pnpm dev` or `pnpm start`).
 - **Settings:** create `.env.docker` from `.env.example` before the first build (git-ignored like every `.env*`
   file). Services running on this machine are reached as `host.docker.internal`, e.g.
-  `OLLAMA_HOST=host.docker.internal`. The file is mounted as the server's `.env` at run time and given to
-  `next build` as a BuildKit secret. Neither copy is stored in the image, and `.dockerignore` keeps `.env*` out of
-  the build context.
+  `OLLAMA_HOST=host.docker.internal`. The file is mounted as the server's `.env` at run time, and only then:
+  the build gets no settings. `next build` copies every `.env` file it loads into the standalone output, which the
+  image ships, so `.dockerignore` keeps `.env*` out of the build context (and the build deletes any copy, just in
+  case). `pnpm security` checks the image for them.
 - **Loopback only:** the port is published on `127.0.0.1`. Inside the container the server must listen on every
   interface for Docker to reach it, and the app has no authentication.
 - **History:** the database lives in the container (`/home/node/.ollama-bench/bench.db`), so `--rm` throws it

@@ -68,13 +68,13 @@
     //   image      <folder>:local        e.g. ollama-bench:local
     //   container  <folder>-local        e.g. ollama-bench-local (also its hostname)
     {
-      // Production image built locally (preLaunchTask of `docker:run`): .env.docker is passed as a BuildKit secret
-      // (see Dockerfile), never stored in the image. No URL is baked in: `docker:run` sets SERVER_URL (port 3300).
+      // Production image built locally (preLaunchTask of `docker:run`), without any settings: .env.docker is given
+      // only at run time (see Dockerfile). No URL is baked in: `docker:run` sets SERVER_URL (port 3300).
       // --pull: always the current node:24-alpine, so security fixes in the base image reach the image (and Scout).
       "label": "docker:build",
       "type": "process",
       "command": "docker",
-      "args": ["build", "--pull", "--secret", "id=env,src=.env.docker", "-t", "${workspaceFolderBasename}:local", "."],
+      "args": ["build", "--pull", "-t", "${workspaceFolderBasename}:local", "."],
       "dependsOn": ["docker:stop"],
       "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
       "problemMatcher": []

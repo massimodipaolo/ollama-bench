@@ -2,16 +2,17 @@
 #
 # Production image of the app, for running it locally in a container (VS Code: `docker:run`).
 #
-#   docker build --pull --secret id=env,src=.env.docker -t ollama-bench:local .
+#   docker build --pull -t ollama-bench:local .
 #   docker run --rm --name ollama-bench-local --hostname ollama-bench-local -p 127.0.0.1:3300:3000 \
 #     -v "$PWD/.env.docker:/app/.env:ro" ollama-bench:local
 #
 # Names: image <folder>:local, container and hostname <folder>-local (the VS Code tasks derive them from the
 # workspace folder name).
 #
-# Secrets never enter the image: `next build` sees .env.docker as a BuildKit secret mounted for that one step (it is
-# optional), and at run time the same file is mounted as /app/.env, which the server loads. .dockerignore keeps every
-# .env* file out of the build context.
+# Secrets never enter the image: settings come only at run time (.env.docker mounted as /app/.env, which the server
+# loads). The build needs none and gets none: .dockerignore keeps every .env* file out of the build context. That
+# matters because `next build` copies every .env file it loads into the standalone output, which the image ships (a
+# build-time .env once ended up in /app/.env this way); the build step also deletes any such copy, just in case.
 #
 # The image ships Next's standalone output (next.config.ts: output 'standalone'): server.js with only the node_modules
 # the server actually loads, plus the files it reads by path (outputFileTracingIncludes: migrations, fixtures, sample
@@ -39,9 +40,9 @@ RUN pnpm install --frozen-lockfile
 # ---------- builder: next build → .next/standalone
 FROM deps AS builder
 COPY . .
-# .env.docker as /app/.env for this step only (not written to any layer); the build also works without it
-RUN --mount=type=secret,id=env,target=/app/.env,required=false \
-    pnpm build
+# no settings here (see the top); should a .env ever reach the context, its standalone copy must not reach the image
+RUN pnpm build \
+ && rm -f .next/standalone/.env*
 # the MCP test's server, self-contained (see above); createRequire: its CommonJS dependencies inside an ES module
 RUN pnpm exec esbuild scripts/mcp/benchmark-server.mjs --bundle --platform=node --format=esm --target=node24 \
       --log-level=warning \

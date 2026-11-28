@@ -240,7 +240,7 @@ log(
 let buildFailed = false;
 if (opts.build && needsImage) {
   step(`Build image ${imageName}`, () => {
-    const args = ['build', '--pull', '--secret', 'id=env,src=.env.docker', '-t', imageName, '.'];
+    const args = ['build', '--pull', '-t', imageName, '.']; // no settings at build time: see the Dockerfile
     log(`$ docker ${args.join(' ')}`);
     const r = run('docker', args, { inherit: true });
     if (r.status !== 0) {
