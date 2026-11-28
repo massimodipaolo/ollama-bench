@@ -1,6 +1,10 @@
 {
   "suppressions": [
     {
+      "id": "codeql-1c67139d",
+      "reason": "The request body is the reranking test's prompt, built from the queries and documents in fixtures/ (committed in this repository), and it goes to the Ollama server the operator configures (OLLAMA_HOST in .env): sending that text to the model under test is the benchmark. No secret, user upload or other file reaches it. The app runs on the operator's machine, listening on 127.0.0.1."
+    },
+    {
       "id": "codeql-cf1e4484",
       "reason": "The package and repository names come from the web-search cases in fixtures/web-search/cases/*.json, committed in this repository, never from a user or a model; the request reads their public latest version from api.github.com (releases/latest) to score the answer, so the only file data that leaves the machine is those public names. The test runs only from the CLI (pnpm bench) on a developer machine."
     },
