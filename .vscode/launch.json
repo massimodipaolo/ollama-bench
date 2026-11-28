@@ -107,6 +107,17 @@
 
     // ---------- 3-security
     {
+      // All four checks below in one run (scripts/security.mts), after rebuilding the image: one report of every open
+      // finding, most urgent first, with its fix (.data/security/report.md, findings.json for the security-fix skill).
+      // CodeQL makes it long when the sources changed (15-20 minutes); `pnpm security audit scout` takes seconds.
+      "name": "security:all",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm security --build",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-security", "order": 0 }
+    },
+    {
       // Known vulnerabilities in the production dependencies (pnpm-lock.yaml: runtime code, not dev/build tools).
       // Complements `security:scout`, which sees only what ends up in the image. Fix nested ones with `pnpm audit --fix`
       // (adds pnpm overrides) or by upgrading the direct dependency that pulls them in.

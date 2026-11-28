@@ -392,6 +392,34 @@ const results = scans.map((scan) => step(`Scan ${scan}`, () => runScan(scan, own
 
 const reportPath = join(out, 'report.md');
 writeFileSync(reportPath, renderMarkdown(results, own, { gitleaks: version.stdout.trim(), ms: elapsed() }, reportPath));
+// for `pnpm security` (scripts/security.mts): what ran and what it found, with only the fields named here (gitleaks'
+// own JSON also carries the matched text, redacted but still not needed)
+writeFileSync(
+  join(out, 'results.json'),
+  JSON.stringify(
+    {
+      gitleaks: version.stdout.trim(),
+      image: imageName,
+      scans: results.map((r) => ({
+        scan: r.scan,
+        target: r.target,
+        skipped: r.skipped,
+        ms: Math.round(r.ms),
+        leaks: r.leaks?.map((l) => ({
+          rule: l.RuleID,
+          description: l.Description,
+          own: isOwn(l),
+          file: leakPath(l),
+          line: l.StartLine,
+          commit: l.Commit || undefined,
+          fingerprint: l.Fingerprint,
+        })),
+      })),
+    },
+    null,
+    2,
+  ),
+);
 
 console.log('\nResults:');
 for (const r of results) {

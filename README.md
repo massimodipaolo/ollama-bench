@@ -6,6 +6,10 @@ the design and roadmap.
 
 ## Setup
 
+Node **24**, the major named in `.nvmrc` (`nvm install && nvm use`) and in the Dockerfile's `NODE_VERSION`. Both name
+the major only, so every install or image build picks up the latest 24.x security fixes; a test checks that the two
+agree.
+
 ```bash
 pnpm install
 pnpm smoke   # checks Ollama + each judge with one tiny call
@@ -22,15 +26,15 @@ authentication and CSRF protection for that deployment.
 
 `.env` (never committed):
 
-| Var | Purpose |
-|---|---|
-| `OLLAMA_HOST` | `host`, `host:port` or a full URL (port defaults to 11434) |
-| `OLLAMA_API_KEY` | optional; sent as a Bearer token |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI judge |
-| `GOOGLE_GENERATIVE_AI_API_KEY` / `GOOGLE_MODEL` | Google judge |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic judge |
-| `COHERE_API_KEY` / `COHERE_MODEL` | reranking baseline (RAG / rerank tests) |
-| `COHERE_RPM` | optional; Cohere calls per minute (default 10, the trial-key limit) |
+| Var                                             | Purpose                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------- |
+| `OLLAMA_HOST`                                   | `host`, `host:port` or a full URL (port defaults to 11434)          |
+| `OLLAMA_API_KEY`                                | optional; sent as a Bearer token                                    |
+| `OPENAI_API_KEY` / `OPENAI_MODEL`               | OpenAI judge                                                        |
+| `GOOGLE_GENERATIVE_AI_API_KEY` / `GOOGLE_MODEL` | Google judge                                                        |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL`         | Anthropic judge                                                     |
+| `COHERE_API_KEY` / `COHERE_MODEL`               | reranking baseline (RAG / rerank tests)                             |
+| `COHERE_RPM`                                    | optional; Cohere calls per minute (default 10, the trial-key limit) |
 
 A judge without a key and a model is skipped. The DB lives at `~/.ollama-bench/bench.db` (override with `BENCH_DB_PATH`), outside the project so the dev server's file watcher never sees its writes. Migrations in `drizzle/` are applied
 automatically when the DB opens.
@@ -47,6 +51,9 @@ automatically when the DB opens.
   (GitHub's default setup) checks every pull request.
 - **Local security checks**, each with a Run and Debug entry in the **security** group. Usage, options and how to
   act on findings: [scripts/README.md](scripts/README.md#security-checks).
+  - `pnpm security` (`security:all`): the four checks below in one run, and one report of every open finding, most
+    urgent first, with its fix (`.data/security/report.md`, plus `findings.json`). Accepted findings go in
+    `security-suppressions.json`, each with its reason.
   - `pnpm security:codeql` (`security:codeql`): CodeQL's security-extended queries on the sources. It takes 15–20
     minutes, too long for a hook. `--report md,html` writes a readable report.
   - `pnpm audit --prod` (`security:audit`): known vulnerabilities in the production dependencies of
@@ -73,6 +80,10 @@ docker run --rm --name ollama-bench-local --hostname ollama-bench-local -p 127.0
   is the workspace folder name: `ollama-bench:local` and `ollama-bench-local` here. The VS Code tasks and launch
   entries derive them from `${workspaceFolderBasename}`, and `pnpm security:secrets` uses the same default. Docker
   names must be lowercase, so keep the folder name lowercase.
+- **Tests that need Docker don't run in the container:** `terminal-bench` and `web-search` start containers of
+  their own, and the app's container has no Docker client or daemon. Giving it the host's Docker socket would hand the
+  web app root-equivalent control of the machine. Both tests are CLI only: run them with `pnpm bench --tests …`
+  against the app on the host (`pnpm dev` or `pnpm start`).
 - **Settings:** create `.env.docker` from `.env.example` before the first build (git-ignored like every `.env*`
   file). Services running on this machine are reached as `host.docker.internal`, e.g.
   `OLLAMA_HOST=host.docker.internal`. The file is mounted as the server's `.env` at run time and given to
@@ -115,6 +126,7 @@ docker run --rm --name ollama-bench-local --hostname ollama-bench-local -p 127.0
    It's shown on the dashboard (recent runs), on the session page (header, each model, each case), in the
    leaderboards and run tables, and in the CSV export (`exec_ms`). Runs recorded before it was measured show the run's
    start → end, which never included judging (it runs alongside the next generation); their cases show none.
+
 3. Automatic checks (format, limits, exact answers, language) produce the **Auto** score (0–10).
 4. Each judge scores every answer **blind**, on 0–10 with per-criterion detail. A run reports **each judge's mean
    and their average**. Judgments are cached by (rubric, judge model, prompt + response).
@@ -144,13 +156,13 @@ The dashboard and the run form both have two views.
   language, variant and digest.
 - **By capability:** tests grouped by what they measure (`src/config/capabilities.ts`; a test can be in several).
 
-| Capability | Tests |
-|---|---|
-| Text | text-generation, structured-output, doc-to-markdown, rag |
-| Vision | image-recognition, omnidocbench, mmmu-pro |
-| Tools | tool-use, bfcl, mcp, web-search |
-| Coding | terminal-bench |
-| Retrieval | embeddings, reranking, rag |
+| Capability | Tests                                                    |
+| ---------- | -------------------------------------------------------- |
+| Text       | text-generation, structured-output, doc-to-markdown, rag |
+| Vision     | image-recognition, omnidocbench, mmmu-pro                |
+| Tools      | tool-use, bfcl, mcp, web-search                          |
+| Coding     | terminal-bench                                           |
+| Retrieval  | embeddings, reranking, rag                               |
 
 **Capability leaderboard** (`/?view=capability&cap=vision&lang=en`):
 
@@ -281,7 +293,7 @@ Text generation includes `mermaid-flowchart` (en + it): turn a refund-status pro
 flowchart. It needs two named subgraphs, labelled decision diamonds, a retry loop and 12–25 nodes, returned as a
 single code block. Answers are checked with **the real Mermaid parser**, server-side (`src/lib/mermaid-check.ts`):
 
-- `{ "type": "mermaid", "diagram": "flowchart", "onlyBlock": true }`: exactly one ```` ```mermaid ```` block that
+- `{ "type": "mermaid", "diagram": "flowchart", "onlyBlock": true }`: exactly one ` ```mermaid ` block that
   parses, of that diagram type, with no other text. The parse error is shown in the check detail.
 - `{ "type": "mermaidGraph", ... }`: structure of the parsed flowchart: `minNodes`/`maxNodes`, `minDecisions`
   (diamonds), `minSubgraphs`, `minLabelledEdges`, `cycle`, `labels` (found in node or edge labels), `subgraphTitles`.
@@ -296,13 +308,13 @@ session page to see the rendered diagram.
 Doc → Markdown and image tests build standard AI SDK file parts (bytes + media type). `src/lib/files/file-part.ts`
 adapts them for Ollama, which only accepts images:
 
-| Media type | Sent as |
-|---|---|
-| `image/*` | native image part |
-| text formats (CSV, JSON, XML, MD…) | `<file name type>` text part, decoded as UTF-8 (falls back to Windows-1252) |
-| XLSX | text part with one CSV per sheet (no blank rows or trailing empty cells, merged cells once) |
-| DOCX / PDF | text part with the extracted text (mammoth / unpdf) |
-| audio / video | unsupported |
+| Media type                         | Sent as                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `image/*`                          | native image part                                                                           |
+| text formats (CSV, JSON, XML, MD…) | `<file name type>` text part, decoded as UTF-8 (falls back to Windows-1252)                 |
+| XLSX                               | text part with one CSV per sheet (no blank rows or trailing empty cells, merged cells once) |
+| DOCX / PDF                         | text part with the extracted text (mammoth / unpdf)                                         |
+| audio / video                      | unsupported                                                                                 |
 
 Judges receive the original images and PDFs natively, so they can check fidelity against the source.
 
@@ -352,10 +364,11 @@ everything already done.
 ## Updating the SDK (VS Code)
 
 `.vscode/tasks.json` provides "AI SDK: check outdated", "AI SDK: update packages", "AI SDK: verify" (typecheck + lint
-+ smoke) and "AI SDK: update + verify". Then "Bench: re-run after SDK update" (`pnpm bench --skip-existing`) re-runs
-every combination whose last run used other `ai` / `ai-sdk-ollama` versions. Every session records the installed
-versions of `ai`, `@ai-sdk/*`, `ai-sdk-ollama` and the `ollama` JS client (session header, run tables, CSV), so score
-changes can be traced to a library update.
+
+- smoke) and "AI SDK: update + verify". Then "Bench: re-run after SDK update" (`pnpm bench --skip-existing`) re-runs
+  every combination whose last run used other `ai` / `ai-sdk-ollama` versions. Every session records the installed
+  versions of `ai`, `@ai-sdk/*`, `ai-sdk-ollama` and the `ollama` JS client (session header, run tables, CSV), so score
+  changes can be traced to a library update.
 
 `.vscode/launch.json` (Run and Debug) groups its entries in three groups:
 
@@ -366,7 +379,7 @@ changes can be traced to a library update.
     running in its terminal), then runs `pnpm bench --subset quick --lang en --judges openai --skip-existing`.
   - `bench:terminal-bench` uses the same server and runs the quick Terminal-Bench tasks.
   - `ai-sdk:update` updates the packages, then runs the smoke test.
-- **security:** `security:audit`, `security:scout`, `security:secrets` and `security:codeql` (see
+- **security:** `security:all`, `security:audit`, `security:scout`, `security:secrets` and `security:codeql` (see
   [scripts/README.md](scripts/README.md#security-checks)).
 
 Before the bench entries, stop any other app server: :3000 must be free, and benchmarks must run from one server at
@@ -383,11 +396,11 @@ pnpm datasets:fetch bfcl            # just one
 pnpm datasets:fetch --select        # maintainer: re-select the subsets and rewrite the manifests
 ```
 
-| Test | Subset | Scoring | Judges |
-|---|---|---|---|
-| `omnidocbench` | 42 English pages, 6 per document type (quick 5) | text similarity (1 − NED), table cell F1 (TEDS not ported), formula similarity (CDM not ported) | yes (they see the page) |
-| `bfcl` | 60 single-turn items: simple, multiple, parallel, parallel-multiple, irrelevance (quick 5) | ported BFCL AST checker, accuracy | no (deterministic) |
-| `mmmu-pro` | 30 items, one per subject (quick 5); option `config`: standard (10 options) / vision; `prompt`: cot / direct | answer letter, accuracy (an unparseable answer counts as wrong instead of the official random guess) | no (deterministic) |
+| Test           | Subset                                                                                                       | Scoring                                                                                              | Judges                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ----------------------- |
+| `omnidocbench` | 42 English pages, 6 per document type (quick 5)                                                              | text similarity (1 − NED), table cell F1 (TEDS not ported), formula similarity (CDM not ported)      | yes (they see the page) |
+| `bfcl`         | 60 single-turn items: simple, multiple, parallel, parallel-multiple, irrelevance (quick 5)                   | ported BFCL AST checker, accuracy                                                                    | no (deterministic)      |
+| `mmmu-pro`     | 30 items, one per subject (quick 5); option `config`: standard (10 options) / vision; `prompt`: cot / direct | answer letter, accuracy (an unparseable answer counts as wrong instead of the official random guess) | no (deterministic)      |
 
 Licences: **OmniDocBench is research use only / non-commercial**, so its data is downloaded, never committed. BFCL and
 MMMU-Pro are Apache-2.0. MMMU-Pro is read from the dataset's Parquet files with HTTP range requests and the page index
@@ -395,10 +408,13 @@ MMMU-Pro are Apache-2.0. MMMU-Pro is read from the dataset's Parquet files with 
 
 ## Web search and MCP tests
 
-- **web-search** (v2) gives the model a **DuckDuckGo MCP server**: tools `search` and `fetch_content`, from Docker's
+- **web-search** (v2, CLI only: `pnpm bench --tests web-search`) gives the model a **DuckDuckGo MCP server**: tools `search` and `fetch_content`, from Docker's
   `mcp/duckduckgo` image, connected with `@ai-sdk/mcp` over stdio. It replaced ai-sdk-ollama's `webSearch`/`webFetch`,
   which call Ollama's cloud API and need paid credits. Answers that change over time are checked against the npm
   registry / GitHub API at run time.
+  - **CLI only**, like Terminal-Bench: the run form doesn't offer it, and a plain `pnpm bench` skips it. It starts
+    its MCP server with `docker run`, which works only when the app runs on the host, not in its
+    [container](#docker).
   - **Image:** `docker/duckduckgo/Dockerfile`, built automatically on first use as `ollama-bench-duckduckgo:<hash>`.
     It's the upstream image pinned by digest, plus the optional `curl_cffi` backend with Firefox impersonation. Without
     those, DuckDuckGo blocks the server (HTTP 202, empty results); its hardcoded Chrome impersonation was blocked too

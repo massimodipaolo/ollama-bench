@@ -317,7 +317,8 @@ async function main() {
   if (missing.length) console.warn(`Not in this app's suite, skipped: ${missing.join(', ')}`);
   const wanted = new Set([...testIds, ...capTests]);
   // with --tests or --capabilities, exactly what they name (never "everything", even when that comes to nothing).
-  // Without: all tests, except long agentic benchmarks (cliOnly), which run only when named or via their capability
+  // Without: all tests, except the CLI-only ones (hours-long, or starting Docker containers), which run only when
+  // named or via their capability
   const named = a.tests !== undefined || a.capabilities !== undefined;
   const tests = named ? allTests.filter((t) => wanted.has(t.id)) : allTests.filter((t) => !t.cliOnly);
   if (named && !tests.length)
@@ -327,7 +328,7 @@ async function main() {
   if (capIds.length) {
     const long = tests.filter((t) => t.cliOnly && !testIds.includes(t.id)).map((t) => t.id);
     console.log(`Capabilities ${capIds.join(', ')} → ${capTests.filter((id) => !missing.includes(id)).join(', ') || '(none in this app)'}`);
-    if (long.length) console.log(`  includes hours-long ${long.join(', ')} (leave its capability out to skip it)`);
+    if (long.length) console.log(`  includes CLI-only ${long.join(', ')} (leave its capability out to skip it)`);
   }
   const include = a.models ? matcher(list(a.models)) : () => true;
   const exclude = a.exclude ? matcher(list(a.exclude)) : () => false;

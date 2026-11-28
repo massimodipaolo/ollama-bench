@@ -42,7 +42,15 @@ export function docker(args: string[], opts: { timeoutMs?: number; input?: strin
         // give 'close' a moment, then settle regardless
         setTimeout(() => finish(null, `[docker ${args[0]} timed out after ${Math.round(opts.timeoutMs! / 1000)}s]`), 2000).unref();
       }, opts.timeoutMs);
-    p.on('error', (e) => finish(null, e.message));
+    p.on('error', (e) =>
+      finish(
+        null,
+        (e as NodeJS.ErrnoException).code === 'ENOENT'
+          ? // typically the app running in its own container, which has no Docker client (nor a daemon to talk to)
+            'docker CLI not found: this test needs Docker on the machine running the app. In the app container there is none: run it with the app on the host (pnpm dev / pnpm start, then pnpm bench --tests …).'
+          : e.message,
+      ),
+    );
     p.on('close', (code) => finish(code));
     if (opts.input !== undefined) p.stdin.end(opts.input);
   });

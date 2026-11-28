@@ -101,7 +101,11 @@ export interface TestDefinition<C extends BaseCase = BaseCase> {
   languages?: () => string[];
   /** false: deterministic benchmark metric only, judges are not called (default true) */
   judged?: boolean;
-  /** hours-long benchmark: started from the CLI (pnpm bench), not offered in the run form */
+  /**
+   * started from the CLI only (pnpm bench, naming the test or its capability), not offered in the run form and skipped
+   * by a plain `pnpm bench`: hours-long benchmarks, and tests that start Docker containers themselves, which the app
+   * can't do when it runs in a container (no Docker client or daemon there). Run those against the app on the host.
+   */
   cliOnly?: boolean;
   /** Ollama models the test loads besides the model under test (e.g. RAG's embedder): released like the model */
   helperModels?: (config: SessionConfig) => { name: string; embedding: boolean }[];

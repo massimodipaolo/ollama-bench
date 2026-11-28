@@ -114,11 +114,13 @@ export const webSearch: TestDefinition<WebCase> = {
   id: 'web-search',
   name: 'Web search (MCP · DuckDuckGo)',
   description:
-    'Agentic research with a DuckDuckGo MCP server (search + fetch_content, Docker): live facts checked against the npm/GitHub APIs at run time, stable published facts, and restraint when no search is needed. Live web: results can vary between runs.',
+    'Agentic research with a DuckDuckGo MCP server (search + fetch_content, Docker): live facts checked against the npm/GitHub APIs at run time, stable published facts, and restraint when no search is needed. Live web: results can vary between runs. CLI only: it starts its MCP server with Docker, so it runs only with the app on the host.',
   // v2: DuckDuckGo MCP server instead of ai-sdk-ollama's webSearch/webFetch (Ollama cloud API, no longer free)
   version: '2',
   requires: ['completion', 'tools'],
   numCtx: 32768,
+  // starts the MCP server with `docker run`: impossible from the app's own container (no Docker client or daemon)
+  cliOnly: true,
   rubric: {
     version: 'web-2',
     instructions: `The candidate is an agent with two web tools: ${SEARCH} (DuckDuckGo results) and ${FETCH} (reads a page). You see its tool calls (with results) and its final answer. Judge whether the answer is correct with respect to the reference (for live facts the reference was fetched at run time), grounded in what the tools returned (no invented facts or URLs), cites its sources, and whether it searched sensibly (no needless searches when the answer is common knowledge). Search results come from the live web: if the tools returned errors or no results, a candidate that says it could not verify is better than one that guesses.`,

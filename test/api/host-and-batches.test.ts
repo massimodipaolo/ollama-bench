@@ -146,6 +146,13 @@ describe('GET /api/tests', () => {
     expect(d.judges).toEqual([]); // no keys in tests
     expect(d.sdk.ai).toBeTruthy();
   });
+
+  it('CLI only: the hours-long test and the ones that start their own Docker containers (impossible from the app container)', async () => {
+    const d = await (await tests.GET()).json();
+    expect(d.tests.filter((t: { cliOnly: boolean }) => t.cliOnly).map((t: { id: string }) => t.id)).toEqual(
+      expect.arrayContaining(['terminal-bench', 'web-search']),
+    );
+  });
 });
 
 describe('capability batches', () => {

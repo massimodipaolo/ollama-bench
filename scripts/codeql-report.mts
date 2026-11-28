@@ -47,6 +47,8 @@ export interface Finding {
   /** first data-flow path, source to sink */
   flow: { text: string; loc: Loc }[];
   pathCount: number;
+  /** CodeQL's hash of the primary location's line content: stays the same when other lines move */
+  fingerprint?: string;
 }
 
 export interface ScanInfo {
@@ -86,6 +88,7 @@ interface SarifResult {
   locations?: SarifLocation[];
   relatedLocations?: SarifLocation[];
   codeFlows?: { threadFlows?: { locations?: { location?: SarifLocation }[] }[] }[];
+  partialFingerprints?: { primaryLocationLineHash?: string };
 }
 interface SarifRun {
   tool: { driver: { semanticVersion?: string; rules?: SarifRule[] }; extensions?: { rules?: SarifRule[] }[] };
@@ -217,6 +220,7 @@ export function loadFindings(sarifPath: string, root: string): { findings: Findi
           return l ? [{ text: s.location?.message?.text ?? '', loc: l }] : [];
         }),
         pathCount: r.codeFlows?.length ?? 0,
+        fingerprint: r.partialFingerprints?.primaryLocationLineHash,
       });
     }
   }

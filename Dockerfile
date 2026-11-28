@@ -18,6 +18,8 @@
 # files). One exception: the MCP test spawns scripts/mcp/benchmark-server.mjs as its own Node process, whose imports
 # Next doesn't trace, so the builder bundles it with its dependencies into a single file.
 
+# Node major only, never a patch version: each build with --pull gets the latest 24.x and its security fixes. Keep it
+# equal to .nvmrc (the version for running the app on the host): test/node-version.test.ts fails if they differ.
 ARG NODE_VERSION=24
 
 # ---------- base: Node + pnpm at the version pinned in package.json ("packageManager")

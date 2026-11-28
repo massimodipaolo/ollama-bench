@@ -12,6 +12,7 @@ work with.
 | [`pnpm rejudge`](#pnpm-rejudge)                         | Re-judge a session, or repair broken verdicts                 | `.env`                          | —                                                      |
 | [`pnpm datasets:fetch`](#pnpm-datasetsfetch)            | Download the public benchmark datasets                        | network                         | —                                                      |
 | [`pnpm tb:verify`](#pnpm-tbverify)                      | Check the Terminal-Bench harness with the reference solutions | Docker                          | —                                                      |
+| [`pnpm security`](#pnpm-security)                       | All four checks below, one report of every finding            | the tools of each check         | `security:all`                                         |
 | [`pnpm security:codeql`](#pnpm-securitycodeql)          | CodeQL scan of the sources                                    | CodeQL CLI                      | `security:codeql`                                      |
 | [`pnpm audit --prod`](#pnpm-audit---prod)               | Known vulnerabilities in the production dependencies          | network                         | `security:audit`                                       |
 | [`docker scout cves`](#docker-scout)                    | CVEs in the Docker image: OS packages, Node, npm packages     | Docker, the image built         | `security:scout`                                       |
@@ -160,6 +161,11 @@ pnpm verify                        # typecheck + lint + tests: before a commit, 
   other test runs in Node. The other pages (dashboard, leaderboards, comparison) are mostly display over the tested
   queries, and are not covered by component tests.
 
+- **`pnpm security`'s findings** (`test/scripts/`), on trimmed copies of real CodeQL, gitleaks, pnpm audit and
+  Docker Scout output: the conversion, IDs that survive code moving, suppressions (a reason required, expiry, a secret
+  to rotate never suppressed), the priority order, and that no secret value can reach a finding. Coverage counts
+  `src/` only, so these don't change it.
+
 **Known failures** are written as `it.fails(…)`: the suite stays green while the bug exists, and that test turns red
 once the bug is fixed, as a reminder to make it a plain `it(…)`. None at the moment.
 
@@ -215,25 +221,25 @@ pnpm bench --capabilities vision,tools --tier small   # every test of these capa
 pnpm bench --tests terminal-bench --models qwen3.8:27b --judges none   # hours-long: only when named
 ```
 
-| Option                                 | Meaning                                                                                        |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `--url <url>`                          | App URL (default `$BENCH_URL` or `http://localhost:3000`)                                      |
-| `--tests <ids>`                        | Comma-separated test ids. Default: all except hours-long ones (`terminal-bench`)               |
-| `--capabilities <ids>`                 | The tests of these capabilities, as the app at `--url` lists them. Combines with `--tests`     |
-| `--models <list>` / `--exclude <list>` | Model names or `/regex/`, comma-separated                                                      |
-| `--tier small\|medium\|large\|all`     | Model size: < 10B, 10–50B, > 50B                                                               |
-| `--lang <codes>`                       | Languages (default: every language with cases)                                                 |
-| `--subset quick\|full`                 | Case set (default `quick`)                                                                     |
-| `--judges <ids\|none>`                 | Judges to use (default: all configured)                                                        |
-| `--think`                              | Enable thinking for models that support it                                                     |
-| `--num-ctx <n>`                        | Context window, capped at each model's maximum. A non-default value is a separate variant      |
-| `--option key=value`                   | Test option override, repeatable                                                               |
-| `--all-variants`                       | Every combination of each test's options                                                       |
-| `--skip-existing`                      | Skip combinations already completed with the same model digest, suite version and SDK versions |
-| `--ignore-sdk`                         | With `--skip-existing`: an SDK version change doesn't make a combination due again             |
-| `--max-sessions <n>`                   | Stop after n sessions                                                                          |
-| `--report <file>`                      | Report path (default `.data/reports/bench-<timestamp>.md`)                                     |
-| `--dry-run`                            | Print the plan and exit                                                                        |
+| Option                                 | Meaning                                                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `--url <url>`                          | App URL (default `$BENCH_URL` or `http://localhost:3000`)                                        |
+| `--tests <ids>`                        | Comma-separated test ids. Default: all except the CLI-only ones (`terminal-bench`, `web-search`) |
+| `--capabilities <ids>`                 | The tests of these capabilities, as the app at `--url` lists them. Combines with `--tests`       |
+| `--models <list>` / `--exclude <list>` | Model names or `/regex/`, comma-separated                                                        |
+| `--tier small\|medium\|large\|all`     | Model size: < 10B, 10–50B, > 50B                                                                 |
+| `--lang <codes>`                       | Languages (default: every language with cases)                                                   |
+| `--subset quick\|full`                 | Case set (default `quick`)                                                                       |
+| `--judges <ids\|none>`                 | Judges to use (default: all configured)                                                          |
+| `--think`                              | Enable thinking for models that support it                                                       |
+| `--num-ctx <n>`                        | Context window, capped at each model's maximum. A non-default value is a separate variant        |
+| `--option key=value`                   | Test option override, repeatable                                                                 |
+| `--all-variants`                       | Every combination of each test's options                                                         |
+| `--skip-existing`                      | Skip combinations already completed with the same model digest, suite version and SDK versions   |
+| `--ignore-sdk`                         | With `--skip-existing`: an SDK version change doesn't make a combination due again               |
+| `--max-sessions <n>`                   | Stop after n sessions                                                                            |
+| `--report <file>`                      | Report path (default `.data/reports/bench-<timestamp>.md`)                                       |
+| `--dry-run`                            | Print the plan and exit                                                                          |
 
 - **Strict flags:** a flag with an empty or invalid value is an error, never its default. So `--judges "$JUDGES"` with
   the variable unset can't quietly use every paid judge. An empty plan is an error too, unless `--skip-existing`
@@ -319,6 +325,77 @@ the staged changes for secrets and lints them (see
 The audit and Scout overlap on npm packages but aren't redundant. The audit reads the lockfile, so it also covers
 packages that never reach the image. Scout reads the image, so it also covers the OS, Node and whatever the base image
 brings.
+
+## `pnpm security`
+
+All four checks in one run, and **one report** of what they found: `.data/security/report.md` to read,
+`.data/security/findings.json` for scripts and the `security-fix` skill.
+
+```bash
+pnpm security                  # audit, scout, secrets, codeql (fastest first)
+pnpm security --build          # rebuild the Docker image first: scout and the image secret scan read it
+pnpm security audit scout      # some checks only (seconds); the others keep their last result in the report
+pnpm security --report-only    # run nothing: rebuild the report (after editing security-suppressions.json)
+pnpm security --help
+```
+
+- **Each check runs through its own tool or script**, unchanged: `pnpm audit --json` (with and without `--prod`, to
+  tell production from dev dependencies), `docker scout cves --format sarif`, `scripts/gitleaks.mts`,
+  `scripts/codeql.mts --report md,html`. Their own reports stay where they were and are linked from the report.
+- **Every check keeps its last result** in `.data/security/checks/<check>.json`. After a fix, re-run only the check
+  that found it: the report still shows the others, with the date and commit they ran on. A ⚠️ marks a check that ran
+  on another state of the code.
+- **A missing prerequisite** skips the check when running everything: no Docker running, image not built, no CodeQL
+  CLI. Naming the check makes it an error instead.
+- **One shape for every finding:**
+  - severity: critical / high / medium / low / note, with the tool's 0–10 score when it has one;
+  - area: `app`, `prod-dependency`, `image`, `git-history`, `config`, `scripts`, `dev-dependency`, `tests`;
+  - location, with a link to the file and line when it's in the working tree;
+  - a suggested fix;
+  - for packages: the fixed version, and the direct dependency that pulls the package in.
+
+  Open findings are listed most urgent first: by severity, then by area in the order above (what the running app
+  exposes before dev tooling), then by score.
+
+- **Stable IDs** such as `codeql-1a2b3c4d` or `scout-69d2405a`. Each is a hash of what identifies the finding:
+  - CodeQL: the rule, the file and its fingerprint of the line content, so the ID survives code moving around;
+  - pnpm audit: the advisory and the package;
+  - Scout: the CVE and the package;
+  - gitleaks: its fingerprint.
+
+  Suppressions and commit messages refer to the ID.
+
+- **Secrets:** a finding never contains a secret value: only the rule, the place and gitleaks' fingerprint. An own
+  secret (a `.env` value) found in the history or the image is marked **rotate**. Deleting the copy doesn't undo the
+  exposure, so the key's owner must revoke and replace it. Such a finding can't be suppressed.
+
+**Suppressions** (`security-suppressions.json`, committed): a finding accepted on purpose, with the reason. For
+example, a CodeQL alert on a dev-only script, or a CVE in an image package the app never calls:
+
+```json
+{
+  "suppressions": [
+    {
+      "id": "codeql-1a2b3c4d",
+      "reason": "Reads a URL from our own config file, never user input; the CLI runs only on a developer machine.",
+      "expires": "2027-03-01"
+    }
+  ]
+}
+```
+
+- **Required:** `reason`, at least a sentence (20 characters). An entry without one is ignored and listed in the
+  report.
+- **Optional:** `expires` (YYYY-MM-DD). After that date the finding is open again, so the decision gets reviewed.
+- **Cleanup:** an entry that matches no current finding (the finding is fixed, or the code changed) is listed so it
+  can be removed.
+- **gitleaks:** a false positive can still go in `.gitleaksignore`, as before, which keeps it out of the gitleaks
+  report too.
+
+**Exit code:** 0 no open findings · 1 open findings · 2 a check that was asked for failed (or `--build` failed), or a
+usage error.
+
+**VS Code:** `security:all` runs `pnpm security --build`.
 
 ## `pnpm security:codeql`
 

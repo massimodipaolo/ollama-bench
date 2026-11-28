@@ -160,7 +160,7 @@ export function RunForm() {
                   key={t.id}
                   onClick={() => !t.cliOnly && setTestId(t.id)}
                   disabled={t.cliOnly}
-                  title={t.cliOnly ? `Hours per model: start it with "pnpm bench --tests ${t.id}"` : undefined}
+                  title={t.cliOnly ? `Long, or needs Docker on the host: start it with "pnpm bench --tests ${t.id}"` : undefined}
                   className={`rounded-lg border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${t.id === testId ? 'border-accent bg-panel ring-1 ring-accent' : 'border-line bg-panel hover:border-muted'}`}
                 >
                   <div className="font-medium">
