@@ -105,11 +105,17 @@ function run(cmd: string, args: string[], o: { inherit?: boolean } = {}) {
 /** One of this folder's TypeScript scripts, in its own process (they call process.exit), output shown live. */
 const script = (name: string, args: string[]) =>
   run(process.execPath, ['--import', 'tsx', join(import.meta.dirname, name), ...args], { inherit: true });
-/** pnpm itself: the copy running this script when started by pnpm, else the one on PATH. */
+/**
+ * pnpm itself: the copy running this script when started by pnpm, else the one on PATH. On Windows that one is a
+ * .cmd, which only cmd.exe can start: the only command run through a shell, with fixed arguments, so it has its own
+ * spawn and `run` never goes through a shell.
+ */
 function pnpm(args: string[]) {
   const execPath = process.env.npm_execpath;
   if (execPath && /\.[cm]?js$/.test(execPath)) return run(process.execPath, [execPath, ...args]);
-  return process.platform === 'win32' ? run('cmd.exe', ['/d', '/s', '/c', 'pnpm', ...args]) : run('pnpm', args);
+  if (process.platform !== 'win32') return run('pnpm', args);
+  const r = spawnSync('cmd.exe', ['/d', '/s', '/c', 'pnpm', ...args], { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  return { status: r.status, out: r.stdout?.trim() ?? '', err: (r.stderr || r.error?.message || '').trim() };
 }
 const git = (args: string[]) => {
   const r = run('git', args);
